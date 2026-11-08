@@ -304,14 +304,16 @@ class AdvancedSteeringEngine:
                     self.wheel_angle_deg += avg_delta
                     self.hand_over_hand_active = True
         elif len(matched_hands) == 1:
-            # Single hand rotation or hand-over-hand transition
-            if active_contributors > 0:
-                avg_delta = total_delta_deg / active_contributors
-                self.wheel_angle_deg += avg_delta
-                self.hand_over_hand_active = (abs(self.wheel_angle_deg) > 40.0)
-            else:
-                # Gentle auto-centering when single hand is stationary
-                self.wheel_angle_deg *= 0.95
+            # Single-hand steering support! Steer by moving hand left/right relative to screen center
+            pos, lms = list(matched_hands.values())[0]
+            cx, cy = pos
+            dx_from_hub = cx - self.hub_center[0]
+            reach = 150.0  # Pixels left/right for full lock
+            single_hand_angle = (dx_from_hub / reach) * config.MAX_STEERING_ANGLE
+            single_hand_angle = float(np.clip(single_hand_angle, -config.MAX_STEERING_ANGLE, config.MAX_STEERING_ANGLE))
+            # Smooth tracking
+            self.wheel_angle_deg = 0.5 * single_hand_angle + 0.5 * self.wheel_angle_deg
+            self.hand_over_hand_active = False
         else:
             # No hands: self-aligning caster return to center
             self.wheel_angle_deg *= 0.85

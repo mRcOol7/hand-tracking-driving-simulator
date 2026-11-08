@@ -209,10 +209,10 @@ class HUDVisualizer:
             status_text = "PAUSED"
             status_color = (0, 165, 255)
         elif tracking_data.get("is_two_hands"):
-            status_text = "STEERING ACTIVE"
+            status_text = "STEERING: 2 HANDS ACTIVE"
             status_color = (0, 255, 120)
         elif tracking_data.get("hands_detected") == 1:
-            status_text = "HOLD BOTH HANDS"
+            status_text = "STEERING: 1 HAND (RAISE 2 FOR WHEEL)"
             status_color = (0, 200, 255)
         else:
             status_text = "LOOKING FOR HANDS"
