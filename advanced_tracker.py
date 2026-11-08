@@ -285,16 +285,36 @@ class AdvancedSteeringEngine:
         self.hands_dict = updated_dict
         self.hands_on_wheel = len(self.hands_dict)
 
-        # 5. Continuous Rotation Update
-        if active_contributors > 0:
-            avg_delta = total_delta_deg / active_contributors
-            self.wheel_angle_deg += avg_delta
-            # Detect Hand-over-hand (crossing hands)
-            self.hand_over_hand_active = (active_contributors == 1 and abs(self.wheel_angle_deg) > 70.0)
+        # 5. Hybrid Absolute Tilt & Continuous Rotation Update
+        if len(matched_hands) >= 2:
+            # Sort hands left-to-right
+            pts = sorted([item[0] for item in matched_hands.values()], key=lambda p: p[0])
+            dx = pts[1][0] - pts[0][0]
+            dy = pts[1][1] - pts[0][1]
+            if dx > 40:
+                # Direct absolute hand tilt angle (instant, responsive 1:1 steering)
+                direct_angle = math.degrees(math.atan2(dy, dx))
+                # Smoothly track direct angle
+                self.wheel_angle_deg = 0.7 * direct_angle + 0.3 * self.wheel_angle_deg
+                self.hand_over_hand_active = False
+            else:
+                # Hands crossing over (hand-over-hand): accumulate angular velocity
+                if active_contributors > 0:
+                    avg_delta = total_delta_deg / active_contributors
+                    self.wheel_angle_deg += avg_delta
+                    self.hand_over_hand_active = True
+        elif len(matched_hands) == 1:
+            # Single hand rotation or hand-over-hand transition
+            if active_contributors > 0:
+                avg_delta = total_delta_deg / active_contributors
+                self.wheel_angle_deg += avg_delta
+                self.hand_over_hand_active = (abs(self.wheel_angle_deg) > 40.0)
+            else:
+                # Gentle auto-centering when single hand is stationary
+                self.wheel_angle_deg *= 0.95
         else:
-            # Self-aligning torque (caster return when hands release wheel)
-            return_speed = 0.08  # Caster force
-            self.wheel_angle_deg *= (1.0 - return_speed)
+            # No hands: self-aligning caster return to center
+            self.wheel_angle_deg *= 0.85
             if abs(self.wheel_angle_deg) < 0.2:
                 self.wheel_angle_deg = 0.0
 

@@ -20,9 +20,9 @@ MAX_NUM_HANDS = 2
 ENGINE_MODE = "advanced"
 
 # Multi-Turn Steering Lock (Degrees)
-# Standard car: 450° (1.25 turns each way), Real Truck: 900° (2.5 turns each way)
-MAX_STEERING_ANGLE = 90.0      # Set to 90° for responsive gaming, or up to 450° for full sim!
-STEERING_DEADZONE = 4.0        # Degrees near center treated as perfectly straight (0.0)
+# Set to 45.0° for natural, responsive hand steering where 45° tilt = 100% full steering lock
+MAX_STEERING_ANGLE = 45.0
+STEERING_DEADZONE = 3.0        # Degrees near center treated as perfectly straight (0.0)
 SMOOTHING_FACTOR = 0.25        # 0.0 to 1.0 (Lower = smoother & less jitter, Higher = faster reaction)
 AUTO_CENTER_RATE = 0.20        # Speed at which steering returns to 0 when hands are not detected
 
