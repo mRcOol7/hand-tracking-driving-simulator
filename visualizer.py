@@ -189,9 +189,9 @@ class HUDVisualizer:
     def _draw_info_card(self, frame, tracking_data, input_controller, fps):
         """Draw top-left status card with mode, angle, and tracking status."""
         overlay = frame.copy()
-        cv2.rectangle(overlay, (15, 15), (320, 185), (20, 20, 20), -1)
+        cv2.rectangle(overlay, (15, 15), (320, 205), (20, 20, 20), -1)
         cv2.addWeighted(overlay, 0.75, frame, 0.25, 0, frame)
-        cv2.rectangle(frame, (15, 15), (320, 185), (80, 80, 80), 1)
+        cv2.rectangle(frame, (15, 15), (320, 205), (80, 80, 80), 1)
 
         # Title
         cv2.putText(frame, "ATS VIRTUAL STEERING", (28, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 200, 255), 2, cv2.LINE_AA)
@@ -227,7 +227,12 @@ class HUDVisualizer:
 
         steer_pct = steer * 100
         direction = "RIGHT" if steer > 0.03 else ("LEFT" if steer < -0.03 else "CENTER")
-        cv2.putText(frame, f"Steer: {steer_pct:+.1f}% ({direction})", (28, 160), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.putText(frame, f"Steer: {steer_pct:+.1f}% ({direction})", (28, 155), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (255, 255, 255), 1, cv2.LINE_AA)
+
+        # Live Gamepad X-Axis Value
+        lx_val = int(steer * 32767)
+        x_col = (0, 255, 120) if abs(lx_val) > 1000 else (180, 180, 180)
+        cv2.putText(frame, f"X-Axis: {lx_val:+6d} / 32767", (28, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.52, x_col, 2, cv2.LINE_AA)
 
     def _draw_hotkeys(self, frame, w, h):
         """Draw bottom hotkey shortcuts bar."""

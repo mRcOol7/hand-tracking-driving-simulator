@@ -31,6 +31,9 @@ class InputController:
         self.active_keys = set()
         self.last_ind_left_time = 0.0
         self.last_ind_right_time = 0.0
+        self.horn_is_pressed = False
+        self.dpad_left_is_pressed = False
+        self.dpad_right_is_pressed = False
 
         if self.mode == "gamepad":
             self._init_gamepad()
@@ -90,34 +93,41 @@ class InputController:
 
     def _apply_gamepad(self, steer, throttle, brake, horn, ind_left, ind_right):
         try:
-            # Steering on Left Stick X-axis
+            # 1. Analog Steering on Left Stick X-axis (-1.0 to +1.0)
             self.gamepad.left_joystick_float(x_value_float=float(steer), y_value_float=0.0)
 
-            # Gas & Brake Triggers
+            # 2. Gas & Brake Triggers (0.0 to 1.0)
             if config.ENABLE_GESTURE_PEDALS:
                 self.gamepad.right_trigger_float(value_float=float(throttle))
                 self.gamepad.left_trigger_float(value_float=float(brake))
 
-            # Horn (Left Thumbstick Click)
-            if horn:
+            # 3. Horn (Left Thumbstick Click L3) - only toggle on state change
+            if horn and not self.horn_is_pressed:
                 self.gamepad.press_button(button=vg.XUSB_BUTTON.XUSB_GAMEPAD_LEFT_THUMB)
-            else:
+                self.horn_is_pressed = True
+            elif not horn and self.horn_is_pressed:
                 self.gamepad.release_button(button=vg.XUSB_BUTTON.XUSB_GAMEPAD_LEFT_THUMB)
+                self.horn_is_pressed = False
 
-            # Indicators (D-Pad Left / Right) with debounce
+            # 4. Indicators (D-Pad Left / Right) - debounced state change
             now = time.time()
-            if ind_left and (now - self.last_ind_left_time > 0.6):
+            if ind_left and not self.dpad_left_is_pressed and (now - self.last_ind_left_time > 0.6):
                 self.gamepad.press_button(button=vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_LEFT)
+                self.dpad_left_is_pressed = True
                 self.last_ind_left_time = now
-            else:
+            elif not ind_left and self.dpad_left_is_pressed:
                 self.gamepad.release_button(button=vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_LEFT)
+                self.dpad_left_is_pressed = False
 
-            if ind_right and (now - self.last_ind_right_time > 0.6):
+            if ind_right and not self.dpad_right_is_pressed and (now - self.last_ind_right_time > 0.6):
                 self.gamepad.press_button(button=vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_RIGHT)
+                self.dpad_right_is_pressed = True
                 self.last_ind_right_time = now
-            else:
+            elif not ind_right and self.dpad_right_is_pressed:
                 self.gamepad.release_button(button=vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_RIGHT)
+                self.dpad_right_is_pressed = False
 
+            # 5. Flush report to Windows driver
             self.gamepad.update()
         except Exception as e:
             print(f"[InputController] Gamepad update error: {e}")
