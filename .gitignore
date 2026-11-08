@@ -1,0 +1,23 @@
+# Bundled portable Python environment (distributed via GitHub Releases zip)
+python/
+
+# Large archive files
+*.zip
+*.tar.gz
+*.7z
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Logs & temp files
+*.log
+.system_generated/
+
+# IDE & OS files
+~$*
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
