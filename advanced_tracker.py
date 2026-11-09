@@ -197,8 +197,8 @@ class AdvancedSteeringEngine:
             for i, lms in enumerate(results.hand_landmarks):
                 wrist = lms[0]
                 mcp = lms[9]
-                cx = ((wrist.x + mcp.x) / 2.0) * w
-                cy = ((wrist.y + mcp.y) / 2.0) * h
+                cx = int(((wrist.x + mcp.x) / 2.0) * w)
+                cy = int(((wrist.y + mcp.y) / 2.0) * h)
                 pos = (cx, cy)
                 hand_size = math.hypot((mcp.x - wrist.x) * w, (mcp.y - wrist.y) * h)
 
@@ -222,10 +222,10 @@ class AdvancedSteeringEngine:
 
             # If both were assigned to the same hand due to detection quirk, separate by X
             if num_detected >= 2 and (left_hand is None or right_hand is None):
-                p1 = ((results.hand_landmarks[0][0].x + results.hand_landmarks[0][9].x) / 2.0 * w,
-                      (results.hand_landmarks[0][0].y + results.hand_landmarks[0][9].y) / 2.0 * h)
-                p2 = ((results.hand_landmarks[1][0].x + results.hand_landmarks[1][9].x) / 2.0 * w,
-                      (results.hand_landmarks[1][0].y + results.hand_landmarks[1][9].y) / 2.0 * h)
+                p1 = (int((results.hand_landmarks[0][0].x + results.hand_landmarks[0][9].x) / 2.0 * w),
+                      int((results.hand_landmarks[0][0].y + results.hand_landmarks[0][9].y) / 2.0 * h))
+                p2 = (int((results.hand_landmarks[1][0].x + results.hand_landmarks[1][9].x) / 2.0 * w),
+                      int((results.hand_landmarks[1][0].y + results.hand_landmarks[1][9].y) / 2.0 * h))
                 s1 = math.hypot((results.hand_landmarks[0][9].x - results.hand_landmarks[0][0].x) * w,
                                 (results.hand_landmarks[0][9].y - results.hand_landmarks[0][0].y) * h)
                 s2 = math.hypot((results.hand_landmarks[1][9].x - results.hand_landmarks[1][0].x) * w,

@@ -48,6 +48,10 @@ class HUDVisualizer:
         is_two_hands = tracking_data.get("is_two_hands", False)
 
         if is_two_hands and left_pt and right_pt:
+            # Ensure integer coordinates for OpenCV 5.x strict typing
+            left_pt = (int(left_pt[0]), int(left_pt[1]))
+            right_pt = (int(right_pt[0]), int(right_pt[1]))
+
             # Color based on steering
             if abs(steer) < 0.05:
                 line_color = (0, 255, 120)       # Clean green (centered)
