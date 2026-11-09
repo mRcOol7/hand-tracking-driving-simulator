@@ -296,8 +296,8 @@ def build_user_manual():
     p_sp.add_run("2.  SPORT Profile (Mustang GT / Supercars): ").font.bold = True
     p_sp.add_run("38.0° fast steering lock, 1.8° tight deadzone, 1.6 S-curve exponent for razor-sharp turn-in, rapid drift counter-steering, and high-speed stability! The on-screen steering wheel automatically morphs into an authentic flat-bottom Mustang GT racing wheel with red centering stripe, speed cutouts, and contoured thumb rests!")
 
-    add_image_figure(doc, os.path.join(IMAGES_DIR, "gesture_horn_indicator.jpg"),
-                     "Figure 3: Interactive Horn Center Push and Outward Turn Signal Gestures")
+    add_image_figure(doc, os.path.join(IMAGES_DIR, "gesture_gear_shifting.jpg"),
+                     "Figure 3: Transmission Gear Shifting Gestures - Forward Push for DRIVE [D] and Downward Pull for REVERSE [R]")
 
     # SECTION 3: PHONE AS WEBCAM
     h3 = doc.add_heading(level=1)
