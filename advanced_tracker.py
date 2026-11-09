@@ -1,18 +1,19 @@
-"""Enterprise-Grade Hand Tracking & Steering Engine for American Truck Simulator.
-
+"""
+Advanced Hand Steering Engine for American Truck Simulator.
 Features:
-1. One Euro Filter (1€ Filter) - Adaptive jitter removal with zero high-speed lag.
-2. Polar Orbit Tangent Accumulator - Allows continuous 360°, 720°, 900° full rotation.
-3. Hand-Over-Hand Driving - Smoothly handles crossing hands and lifting one hand off.
-4. Temporal Hand Identity Tracking - Prevents left/right hand identity swapping.
-5. Self-Aligning Torque - Smooth caster return to center when hands release the wheel.
+- Anatomical Handedness Tracking (Left vs. Right hand anatomy).
+- Seamless Cross-Hand (Hand-Over-Hand) Multi-Turn Rotation without direction inversion.
+- Progressive S-Curve Anti-Twitch Highway Stability (Calm Center, Powerful Lock).
+- Intuitive Hand Gear Shifter (Push forward -> Drive D, Pull back -> Reverse R).
+- Single-Hand Reach Steering and Dual-Hand Wheel Tilt.
+- 1 Euro Adaptive Low-Pass Filter for Jitter-Free Response.
 """
 
 import os
-import math
 import time
-import numpy as np
+import math
 import cv2
+import numpy as np
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
@@ -47,6 +48,11 @@ class OneEuroFilter:
         self.dx_prev = 0.0
         self.t_prev = None
 
+    def reset(self):
+        self.x_prev = None
+        self.dx_prev = 0.0
+        self.t_prev = None
+
     def filter(self, x, timestamp=None):
         if timestamp is None:
             timestamp = time.time()
@@ -73,27 +79,9 @@ class OneEuroFilter:
         self.t_prev = timestamp
         return x_hat
 
-    def reset(self):
-        self.x_prev = None
-        self.dx_prev = 0.0
-        self.t_prev = None
-
 
 # ==============================================================================
-# 2. Persistent Hand Identity Tracker
-# ==============================================================================
-class TrackedHand:
-    def __init__(self, hand_id, pos, landmarks):
-        self.id = hand_id
-        self.pos = pos                  # (x, y) pixels
-        self.landmarks = landmarks
-        self.prev_angle = None
-        self.last_seen = time.time()
-        self.is_gripping = True
-
-
-# ==============================================================================
-# 3. Enterprise Advanced Steering Engine
+# 2. Advanced Steering Engine
 # ==============================================================================
 class AdvancedSteeringEngine:
     def __init__(self):
@@ -110,49 +98,54 @@ class AdvancedSteeringEngine:
         )
         self.detector = vision.HandLandmarker.create_from_options(options)
 
-        # 1 Euro Filters for X, Y of hands and continuous wheel angle
+        # Adaptive filters
         self.angle_filter = OneEuroFilter(freq=60.0, mincutoff=0.6, beta=0.02)
         self.steer_output_filter = OneEuroFilter(freq=60.0, mincutoff=0.4, beta=0.03)
 
-        # Multi-turn Continuous Wheel State
-        self.wheel_angle_deg = 0.0          # Unbounded continuous angle (e.g. -450° to +450°)
-        self.max_lock_deg = 450.0           # Lock-to-lock degrees (900° total wheel travel)
-        self.hub_center = None              # (cx, cy) center of steering wheel
-        self.hub_radius = 140.0
-
-        # Hand tracking persistence
-        self.hands_dict = {}                # hand_id -> TrackedHand
-        self.next_hand_id = 1
-        self.hands_on_wheel = 0
-        self.hand_over_hand_active = False
-
-        # Calibrated center offset
+        # Wheel State
+        self.wheel_angle_deg = 0.0
+        self.prev_vector_angle_deg = None
         self.calibration_offset = 0.0
+        self.hub_center = None
+
+        # Persistent Hand Positions
+        self.last_left_pt = None
+        self.last_right_pt = None
 
         # Pedals
         self.throttle = 0.0
         self.brake = 0.0
+
+        # Gear Selector State ('D' = Drive, 'N' = Neutral, 'R' = Reverse)
+        self.current_gear = "D"
+        self.gear_shift_event = None       # "UP", "DOWN", "NEUTRAL"
+        self.last_gear_shift_time = 0.0
+
+        # Hand Depth Tracking for Gear Shifting
+        self.prev_r_hand_size = None
+        self.prev_l_hand_y = None
 
     def calibrate_center(self):
         """Set current wheel angle as dead center (0°)."""
         self.calibration_offset = self.wheel_angle_deg
         print(f"[AdvancedEngine] Calibrated Center: offset = {self.calibration_offset:.2f}°")
 
-    def reset_center(self):
-        """Reset wheel back to zero."""
+    def reset_calibration(self):
+        """Reset calibration back to zero."""
         self.wheel_angle_deg = 0.0
         self.calibration_offset = 0.0
+        self.prev_vector_angle_deg = None
         self.angle_filter.reset()
         self.steer_output_filter.reset()
         print("[AdvancedEngine] Reset Center to 0.0°")
 
-    def _unwrap_delta(self, curr_angle, prev_angle):
-        """Compute shortest angular displacement (-pi to +pi)."""
-        d = curr_angle - prev_angle
-        while d > math.pi:
-            d -= 2.0 * math.pi
-        while d < -math.pi:
-            d += 2.0 * math.pi
+    def _unwrap_delta_deg(self, curr_deg, prev_deg):
+        """Computes shortest angular distance (-180° to +180°)."""
+        d = curr_deg - prev_deg
+        while d > 180.0:
+            d -= 360.0
+        while d < -180.0:
+            d += 360.0
         return d
 
     def _calculate_pinch(self, landmarks, w, h):
@@ -166,179 +159,174 @@ class AdvancedSteeringEngine:
         return d_pinch / ref_len
 
     def process_frame(self, frame_bgr):
-        """
-        Process camera frame through enterprise multi-turn polar tracking engine.
-        Returns detailed telemetry dictionary.
-        """
+        """Processes camera frame and returns complete driving telemetry."""
         h, w, _ = frame_bgr.shape
         now = time.time()
 
-        # Set default virtual hub center if not set
         if self.hub_center is None:
             self.hub_center = (w // 2, int(h * 0.58))
 
-        # 1. MediaPipe Detection
+        # MediaPipe Detection
         rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
         results = self.detector.detect(mp_image)
 
-        current_hand_positions = []
-        raw_landmarks_list = []
-
+        left_hand = None       # (pos, landmarks, hand_size)
+        right_hand = None
+        raw_landmarks = []
         target_throttle = 0.0
         target_brake = 0.0
-        is_horn = False
-        trigger_ind_left = False
-        trigger_ind_right = False
+        self.gear_shift_event = None
 
         if results and results.hand_landmarks:
-            for lms in results.hand_landmarks:
+            raw_landmarks = results.hand_landmarks
+            num_detected = len(results.hand_landmarks)
+
+            # 1. Identify Left and Right hands using anatomical handedness
+            for i, lms in enumerate(results.hand_landmarks):
                 wrist = lms[0]
                 mcp = lms[9]
                 cx = ((wrist.x + mcp.x) / 2.0) * w
                 cy = ((wrist.y + mcp.y) / 2.0) * h
-                current_hand_positions.append(((cx, cy), lms))
-                raw_landmarks_list.append(lms)
+                pos = (cx, cy)
+                hand_size = math.hypot((mcp.x - wrist.x) * w, (mcp.y - wrist.y) * h)
 
-                # 1. Horn Check: Hand presses center of steering wheel hub (< 70px)
-                dist_to_hub = math.hypot(cx - self.hub_center[0], cy - self.hub_center[1])
-                if dist_to_hub < 70.0:
-                    is_horn = True
+                category = "Unknown"
+                if hasattr(results, "handedness") and i < len(results.handedness):
+                    category = results.handedness[i][0].category_name
 
-                # 2. Indicator Check: Finger flicked outward to the side
-                index_tip = lms[8]
-                if cx < self.hub_center[0]:
-                    # Left hand pointing outward to the left
-                    if (wrist.x - index_tip.x) * w > 50.0:
-                        trigger_ind_left = True
+                # In horizontally flipped frame (FLIP_CAMERA=True):
+                # "Right" label corresponds to the driver's Right Hand.
+                # "Left" label corresponds to the driver's Left Hand.
+                if category == "Right":
+                    right_hand = (pos, lms, hand_size)
+                elif category == "Left":
+                    left_hand = (pos, lms, hand_size)
                 else:
-                    # Right hand pointing outward to the right
-                    if (index_tip.x - wrist.x) * w > 50.0:
-                        trigger_ind_right = True
-
-                # 3. Pinch checks (Paddle gas / brake)
-                pinch = self._calculate_pinch(lms, w, h)
-                if pinch < 0.38 and dist_to_hub >= 70.0:
-                    # If hand is on right side -> Gas, left side -> Brake
+                    # Fallback if category ambiguous: assign by horizontal position
                     if cx > self.hub_center[0]:
-                        target_throttle = 1.0
+                        right_hand = (pos, lms, hand_size)
                     else:
+                        left_hand = (pos, lms, hand_size)
+
+            # If both were assigned to the same hand due to detection quirk, separate by X
+            if num_detected >= 2 and (left_hand is None or right_hand is None):
+                p1 = ((results.hand_landmarks[0][0].x + results.hand_landmarks[0][9].x) / 2.0 * w,
+                      (results.hand_landmarks[0][0].y + results.hand_landmarks[0][9].y) / 2.0 * h)
+                p2 = ((results.hand_landmarks[1][0].x + results.hand_landmarks[1][9].x) / 2.0 * w,
+                      (results.hand_landmarks[1][0].y + results.hand_landmarks[1][9].y) / 2.0 * h)
+                s1 = math.hypot((results.hand_landmarks[0][9].x - results.hand_landmarks[0][0].x) * w,
+                                (results.hand_landmarks[0][9].y - results.hand_landmarks[0][0].y) * h)
+                s2 = math.hypot((results.hand_landmarks[1][9].x - results.hand_landmarks[1][0].x) * w,
+                                (results.hand_landmarks[1][9].y - results.hand_landmarks[1][0].y) * h)
+                if p1[0] < p2[0]:
+                    left_hand = (p1, results.hand_landmarks[0], s1)
+                    right_hand = (p2, results.hand_landmarks[1], s2)
+                else:
+                    left_hand = (p2, results.hand_landmarks[1], s2)
+                    right_hand = (p1, results.hand_landmarks[0], s1)
+
+            # 2. Gesture Pedals Check (Pinch Gas/Brake)
+            if config.ENABLE_GESTURE_PEDALS:
+                if right_hand is not None:
+                    pinch_r = self._calculate_pinch(right_hand[1], w, h)
+                    if pinch_r < 0.38:
+                        target_throttle = 1.0
+                if left_hand is not None:
+                    pinch_l = self._calculate_pinch(left_hand[1], w, h)
+                    if pinch_l < 0.38:
                         target_brake = 1.0
 
-        # 2. Match Detected Hands with Persistent IDs (Spatial Proximity)
-        matched_hands = {}
-        for (pos, lms) in current_hand_positions:
-            best_id = None
-            min_dist = 180.0  # Max pixel jump between consecutive frames
-            for hid, thand in self.hands_dict.items():
-                if hid not in matched_hands:
-                    d = math.hypot(pos[0] - thand.pos[0], pos[1] - thand.pos[1])
-                    if d < min_dist:
-                        min_dist = d
-                        best_id = hid
+            # 3. Gear Shifting Movement Detection
+            if config.ENABLE_GEAR_GESTURES and (now - self.last_gear_shift_time > 0.8):
+                # A. Shift to DRIVE (D): Push right hand forward toward screen (hand size expands)
+                if right_hand is not None and self.prev_r_hand_size is not None:
+                    size_growth = (right_hand[2] - self.prev_r_hand_size) / max(1.0, self.prev_r_hand_size)
+                    if size_growth > 0.28:
+                        self.current_gear = "D"
+                        self.gear_shift_event = "UP"
+                        self.last_gear_shift_time = now
+                        print("[GearShift] Gesture detected -> DRIVE (D)")
 
-            if best_id is not None:
-                matched_hands[best_id] = (pos, lms)
+                # B. Shift to REVERSE (R): Pull left hand downward rapidly
+                if left_hand is not None and self.prev_l_hand_y is not None:
+                    y_drop = left_hand[0][1] - self.prev_l_hand_y
+                    if y_drop > 45.0:
+                        self.current_gear = "R"
+                        self.gear_shift_event = "DOWN"
+                        self.last_gear_shift_time = now
+                        print("[GearShift] Gesture detected -> REVERSE (R)")
+
+                if right_hand:
+                    self.prev_r_hand_size = right_hand[2]
+                if left_hand:
+                    self.prev_l_hand_y = left_hand[0][1]
+
+        # 4. Continuous Vector Steering Calculation (Handles Crossing Hands!)
+        hands_detected = (1 if left_hand else 0) + (1 if right_hand else 0)
+
+        if left_hand and right_hand:
+            # Vector from Left Hand to Right Hand
+            pt_l = left_hand[0]
+            pt_r = right_hand[0]
+            self.last_left_pt = pt_l
+            self.last_right_pt = pt_r
+
+            dx = pt_r[0] - pt_l[0]
+            dy = pt_r[1] - pt_l[1]
+
+            # In screen coordinates, y increases downward.
+            # When right hand is lower than left hand (dy > 0), user turns RIGHT.
+            # When right hand crosses to the left (dx < 0), angle smoothly continues into 90°..180°!
+            raw_vector_deg = math.degrees(math.atan2(dy, dx))
+
+            # Phase-unwrap delta relative to previous frame to prevent 180°/360° flips
+            if self.prev_vector_angle_deg is not None:
+                d_deg = self._unwrap_delta_deg(raw_vector_deg, self.prev_vector_angle_deg)
+                # Apply angular accumulation
+                self.wheel_angle_deg += d_deg
             else:
-                # Assign new ID
-                new_id = self.next_hand_id
-                self.next_hand_id += 1
-                matched_hands[new_id] = (pos, lms)
+                self.wheel_angle_deg = raw_vector_deg
 
-        # 3. Dynamic Wheel Hub Alignment
-        # If two hands are visible, gently center the hub between hands
-        if len(matched_hands) >= 2:
-            p_list = [item[0] for item in matched_hands.values()]
-            avg_x = (p_list[0][0] + p_list[1][0]) / 2.0
-            avg_y = (p_list[0][1] + p_list[1][1]) / 2.0
-            # Smooth hub center drift
-            self.hub_center = (
-                int(0.05 * avg_x + 0.95 * self.hub_center[0]),
-                int(0.05 * avg_y + 0.95 * self.hub_center[1]),
-            )
-            self.hub_radius = 0.05 * (math.hypot(p_list[0][0] - p_list[1][0], p_list[0][1] - p_list[1][1]) / 2.0) + 0.95 * self.hub_radius
+            self.prev_vector_angle_deg = raw_vector_deg
 
-        # 4. Polar Tangential Torque Accumulation
-        # Each gripping hand rotates around hub_center. We compute angular velocity dTheta!
-        total_delta_deg = 0.0
-        active_contributors = 0
-
-        updated_dict = {}
-        for hid, (pos, lms) in matched_hands.items():
-            # Angle relative to wheel center hub
-            hx = pos[0] - self.hub_center[0]
-            hy = pos[1] - self.hub_center[1]
-            curr_polar_rad = math.atan2(hy, hx)
-
-            if hid in self.hands_dict and self.hands_dict[hid].prev_angle is not None:
-                d_rad = self._unwrap_delta(curr_polar_rad, self.hands_dict[hid].prev_angle)
-                d_deg = math.degrees(d_rad)
-                # Ignore unreasonable teleportations (> 60° per frame)
-                if abs(d_deg) < 60.0:
-                    total_delta_deg += d_deg
-                    active_contributors += 1
-
-            thand = TrackedHand(hid, pos, lms)
-            thand.prev_angle = curr_polar_rad
-            updated_dict[hid] = thand
-
-        self.hands_dict = updated_dict
-        self.hands_on_wheel = len(self.hands_dict)
-
-        # 5. Hybrid Absolute Tilt & Continuous Rotation Update
-        if len(matched_hands) >= 2:
-            # Sort hands left-to-right
-            pts = sorted([item[0] for item in matched_hands.values()], key=lambda p: p[0])
-            dx = pts[1][0] - pts[0][0]
-            dy = pts[1][1] - pts[0][1]
-            if dx > 40:
-                # Direct absolute hand tilt angle (instant, responsive 1:1 steering)
-                direct_angle = math.degrees(math.atan2(dy, dx))
-                # Smoothly track direct angle
-                self.wheel_angle_deg = 0.7 * direct_angle + 0.3 * self.wheel_angle_deg
-                self.hand_over_hand_active = False
-            else:
-                # Hands crossing over (hand-over-hand): accumulate angular velocity
-                if active_contributors > 0:
-                    avg_delta = total_delta_deg / active_contributors
-                    self.wheel_angle_deg += avg_delta
-                    self.hand_over_hand_active = True
-        elif len(matched_hands) == 1:
-            # Single-hand steering support! Steer by moving hand left/right relative to screen center
-            pos, lms = list(matched_hands.values())[0]
-            cx, cy = pos
-            dx_from_hub = cx - self.hub_center[0]
-            reach = 150.0  # Pixels left/right for full lock
-            single_hand_angle = (dx_from_hub / reach) * config.MAX_STEERING_ANGLE
-            single_hand_angle = float(np.clip(single_hand_angle, -config.MAX_STEERING_ANGLE, config.MAX_STEERING_ANGLE))
-            # Smooth tracking
-            self.wheel_angle_deg = 0.5 * single_hand_angle + 0.5 * self.wheel_angle_deg
-            self.hand_over_hand_active = False
+        elif left_hand or right_hand:
+            # Single-Hand Steering Mode (Offset from hub center)
+            single_pos = (left_hand or right_hand)[0]
+            dx_from_hub = single_pos[0] - self.hub_center[0]
+            reach = 160.0
+            single_angle = (dx_from_hub / reach) * config.MAX_STEERING_ANGLE
+            single_angle = float(np.clip(single_angle, -config.MAX_STEERING_ANGLE, config.MAX_STEERING_ANGLE))
+            # Smooth tracking towards single hand angle
+            self.wheel_angle_deg = 0.4 * single_angle + 0.6 * self.wheel_angle_deg
+            self.prev_vector_angle_deg = None
         else:
             # No hands: self-aligning caster return to center
-            self.wheel_angle_deg *= 0.85
+            self.wheel_angle_deg *= (1.0 - config.AUTO_CENTER_RATE)
             if abs(self.wheel_angle_deg) < 0.2:
                 self.wheel_angle_deg = 0.0
+            self.prev_vector_angle_deg = None
 
-        # Apply continuous lock limits (e.g. ±450° = 900° lock-to-lock)
-        self.wheel_angle_deg = float(np.clip(self.wheel_angle_deg, -self.max_lock_deg, self.max_lock_deg))
-
-        # 6. Apply One Euro Filter to the effective steering angle
+        # 5. Progressive S-Curve Anti-Twitch Calculation
         effective_angle = self.wheel_angle_deg - self.calibration_offset
         filtered_angle = self.angle_filter.filter(effective_angle, timestamp=now)
 
-        # 7. Apply Deadzone & Proportional Output Mapping
         deadzone = config.STEERING_DEADZONE
         if abs(filtered_angle) <= deadzone:
             target_steer = 0.0
         else:
             sign = 1.0 if filtered_angle > 0 else -1.0
-            # Scale proportionally up to max lock angle
             usable_range = max(1.0, config.MAX_STEERING_ANGLE - deadzone)
-            raw_mag = (abs(filtered_angle) - deadzone) / usable_range
-            target_steer = sign * min(1.0, raw_mag)
+            # Normalized input u in [0.0, 1.0]
+            u = min(1.0, (abs(filtered_angle) - deadzone) / usable_range)
 
-        # Smooth output for virtual controller
+            # Progressive S-Curve Formula:
+            # output = alpha * u + (1 - alpha) * u^exponent
+            alpha = getattr(config, "STEERING_LINEAR_COEFF", 0.20)
+            exp = getattr(config, "STEERING_S_CURVE_EXPONENT", 2.4)
+            steer_magnitude = alpha * u + (1.0 - alpha) * (u ** exp)
+            target_steer = sign * float(np.clip(steer_magnitude, 0.0, 1.0))
+
         smoothed_steer = self.steer_output_filter.filter(target_steer, timestamp=now)
 
         # Smooth pedals
@@ -349,20 +337,15 @@ class AdvancedSteeringEngine:
             "steer": float(np.clip(smoothed_steer, -1.0, 1.0)),
             "wheel_angle_deg": float(self.wheel_angle_deg),
             "calibrated_angle": float(filtered_angle),
-            "hands_on_wheel": self.hands_on_wheel,
-            "is_two_hands": (self.hands_on_wheel >= 2),
-            "hand_over_hand": self.hand_over_hand_active,
-            "hub_center": self.hub_center,
-            "hub_radius": self.hub_radius,
-            "hands_data": self.hands_dict,
+            "hands_detected": hands_detected,
+            "is_two_hands": (hands_detected >= 2),
+            "left_pt": self.last_left_pt if left_hand else None,
+            "right_pt": self.last_right_pt if right_hand else None,
             "throttle": float(self.throttle),
             "brake": float(self.brake),
-            "horn": is_horn,
-            "ind_left": trigger_ind_left,
-            "ind_right": trigger_ind_right,
-            "hands_detected": self.hands_on_wheel,
-            "landmarks": raw_landmarks_list,
-            "raw_landmarks": raw_landmarks_list,
+            "current_gear": self.current_gear,
+            "gear_shift": self.gear_shift_event,
+            "landmarks": raw_landmarks,
         }
 
     def close(self):

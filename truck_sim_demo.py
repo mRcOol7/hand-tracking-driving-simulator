@@ -319,8 +319,8 @@ class TruckSimulatorDemo:
         self._draw_dashboard_cluster(scene)
 
         # 11. Bottom Hotkey Guide
-        bar_text = "[W/Pinch Right] Accel   |   [S/Pinch Left] Air Brake   |   [H] Horn   |   [[ / ]] Blinkers   |   [Q] Quit"
-        cv2.putText(scene, bar_text, (self.w // 2 - 380, self.h - 14), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (210, 210, 210), 1, cv2.LINE_AA)
+        bar_text = "[Tilt Hands] Steer Wheel   |   [W/Pinch R] Accel   |   [S/Pinch L] Brake   |   [C] Calibrate   |   [Q] Quit"
+        cv2.putText(scene, bar_text, (self.w // 2 - 400, self.h - 14), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (210, 210, 210), 1, cv2.LINE_AA)
 
         return scene
 
@@ -542,7 +542,8 @@ def run_demo():
                     if config.FLIP_CAMERA:
                         raw_frame = cv2.flip(raw_frame, 1)
                     tracking_data = tracker.process_frame(raw_frame)
-                    cam_frame = hud.draw_hud(raw_frame.copy(), tracking_data, input_controller=type('obj', (object,), {'mode': 'GAMEPAD', 'is_paused': False})(), fps=1.0 / dt)
+                    dummy_ctrl = type('obj', (object,), {'mode': 'GAMEPAD', 'is_paused': False, 'physical_controller_active': False})()
+                    cam_frame = hud.draw_hud(raw_frame.copy(), tracking_data, input_controller=dummy_ctrl, fps=1.0 / dt)
 
             # Support BOTH 2-hand wheel tilt and 1-hand reach steering!
             if has_camera and tracking_data.get("hands_detected", 0) > 0:

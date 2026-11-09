@@ -252,22 +252,28 @@ def build_user_manual():
     add_image_figure(doc, os.path.join(IMAGES_DIR, "gesture_pedals_pinch.jpg"),
                      "Figure 2: Analog Throttle & Brake Pedals via Micro-Pinch Gesture")
 
-    # Horn & Blinkers Subsection
+    # Transmission Shifting & Physical Controller Subsection
     h2_sub3 = doc.add_heading(level=2)
     h2_sub3.paragraph_format.space_before = Pt(10)
     h2_sub3.paragraph_format.space_after = Pt(4)
-    r = h2_sub3.add_run("C. Honking the Horn & Turn Indicators (Blinkers)")
+    r = h2_sub3.add_run("C. Transmission Shifting (Drive, Reverse, Neutral) & Physical Xbox Controller")
     r.font.color.rgb = SLATE
 
     p = doc.add_paragraph()
     p.paragraph_format.line_spacing = 1.2
     p.paragraph_format.space_after = Pt(6)
     p.add_run("•  ")
-    p.add_run("Honk Truck Horn (H): ").font.bold = True
-    p.add_run("Just like hitting the center of a real steering wheel, push either hand forward toward the virtual center horn button. A loud truck horn honk triggers in ATS, and the on-screen HUD flashes 'HORN ACTIVE' in bright amber!\n")
+    p.add_run("Shift into DRIVE [D] (1st Gear): ").font.bold = True
+    p.add_run("Push your right hand forward toward the screen. The system pulses Button A (Shift Up) directly to ATS, engaging forward gear with green HUD feedback!\n")
     p.add_run("•  ")
-    p.add_run("Turn Blinkers ([ and ]): ").font.bold = True
-    p.add_run("Flick your left index/thumb outward to toggle your Left Turn Signal. Flick your right index/thumb outward to toggle your Right Turn Signal. The dashboard indicators will flash with audio clicks in ATS!")
+    p.add_run("Shift into REVERSE [R]: ").font.bold = True
+    p.add_run("Pull your left hand downward. The system pulses Button X (Shift Down) into ATS, engaging Reverse gear.\n")
+    p.add_run("•  ")
+    p.add_run("Shift into NEUTRAL [N]: ").font.bold = True
+    p.add_run("Press key [N] on your keyboard to instantly select Neutral transmission.\n")
+    p.add_run("•  ")
+    p.add_run("Simultaneous Physical Xbox Controller Pass-Through: ").font.bold = True
+    p.add_run("You can plug in your physical Xbox controller at any time! Hand tracking steers the truck (Left Stick X), while your physical controller's analog triggers (RT/LT for Gas/Brake), right thumbstick (in-cab camera look around), and buttons merge simultaneously into ATS without any driver conflicts!")
 
     add_image_figure(doc, os.path.join(IMAGES_DIR, "gesture_horn_indicator.jpg"),
                      "Figure 3: Interactive Horn Center Push and Outward Turn Signal Gestures")
@@ -395,15 +401,16 @@ def build_user_manual():
         run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
 
     data_rows = [
-        ("Steer Left / Right", "Tilt hands or rotate hand-over-hand (900°)", "Xbox Left Joystick X", "Rotating wheel angle (°), Bar"),
-        ("Accelerate (Gas)", "Right hand Thumb + Index Pinch", "Xbox Right Trigger (RT)", "GAS: 0% -> 100% green gauge"),
-        ("Brake / Reverse", "Left hand Thumb + Index Pinch", "Xbox Left Trigger (LT)", "BRAKE: 0% -> 100% red gauge"),
-        ("Honk Horn", "Push either hand towards center", "Key [H] (Air Horn [N])", "Bright Amber 'HORN' alert"),
-        ("Left Turn Blinker", "Flick Left Thumb outward", "Key [ [ ]", "Green Left Blinker <<"),
-        ("Right Turn Blinker", "Flick Right Thumb outward", "Key [ ] ]", "Green Right Blinker >>"),
+        ("Steer Left / Right", "Tilt hands or rotate hand-over-hand (900°)", "Xbox Left Joystick X", "Anti-Twitch Progressive S-Curve (+/-0.0%)"),
+        ("Accelerate (Gas)", "Right hand Thumb + Index Pinch (or physical RT)", "Xbox Right Trigger (RT)", "GAS: 0% -> 100% green gauge"),
+        ("Brake / Stop", "Left hand Thumb + Index Pinch (or physical LT)", "Xbox Left Trigger (LT)", "BRAKE: 0% -> 100% red gauge"),
+        ("Shift to DRIVE (D)", "Push right hand forward toward screen", "Xbox Button A / Shift Up", "Green [D] indicator & HUD banner"),
+        ("Shift to REVERSE (R)", "Pull left hand downward", "Xbox Button X / Shift Down", "Red [R] indicator & HUD banner"),
+        ("Shift to NEUTRAL (N)", "Press keyboard key [N]", "Xbox Button Y / Neutral", "Yellow [N] indicator"),
+        ("Physical Xbox Gamepad", "Plug in Xbox 360 / One controller anytime", "Simultaneous Pass-Through", "Physical RT/LT/Right-Stick pass seamlessly"),
         ("Mini PiP Overlay", "Press keyboard key [O]", "Window Toggle", "Shrinks / Expands Always-on-Top HUD"),
-        ("Reset Wheel Center", "Press keyboard key [R]", "Recalibrate Center", "Re-centers wheel angle to 0°"),
-        ("Switch Engine Mode", "Press keyboard key [M]", "Tracker Mode", "Standard <-> Enterprise 900°"),
+        ("Calibrate Wheel Center", "Press keyboard key [C]", "Calibrate Center", "Re-centers zero angle to current hand pose"),
+        ("Switch Gamepad / Keyboard", "Press keyboard key [M]", "Input Mode Toggle", "Gamepad (Analog) <-> Keyboard (DirectInput)"),
         ("Quit Application", "Press keyboard key [Q] or [ESC]", "Exit", "Gracefully closes tracking")
     ]
 

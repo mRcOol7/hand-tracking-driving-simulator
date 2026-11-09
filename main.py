@@ -90,14 +90,15 @@ def main():
 
     is_mini_overlay = False
 
-    print("\n[Controls & Hotkeys]")
+    print("\n[Controls & Driving Guide]")
     print("  Hold both hands up like gripping a steering wheel.")
-    print("  Tilt right  -> Truck steers right")
-    print("  Tilt left   -> Truck steers left")
-    print("  Pinch right hand -> Accelerate (Gas)")
-    print("  Pinch left hand  -> Brake")
-    print("  Press center of wheel -> HONK Horn [H]")
-    print("  Flick left/right index finger -> Left/Right Turn Signals [ [ / ] ]")
+    print("  Tilt hands left / right   -> Smooth authentic truck steering (Progressive S-Curve)")
+    print("  Cross hands completely    -> Continuous multi-turn angle without reversing")
+    print("  Single-hand fallback      -> Steers smoothly when shifting or resting one hand")
+    print("  Push Right Hand forward   -> Gear Shift to DRIVE [D]")
+    print("  Pull Left Hand downward   -> Gear Shift to REVERSE [R]")
+    print("  Physical Xbox Controller  -> Connect physical gamepad anytime! Triggers/buttons merge seamlessly")
+    print("  [N] : Shift to NEUTRAL [N]")
     print("  [O] : Toggle Always-On-Top Mini PiP (floats over ATS on a single screen!)")
     print("  [C] : Calibrate Center (sets current hand pose to 0°)")
     print("  [R] : Reset Calibration")
@@ -131,14 +132,12 @@ def main():
             # Process hand tracking & angle calculation
             data = tracker.process_frame(frame)
 
-            # Apply steering, pedals, horn, and indicators to game
+            # Apply steering, pedals, and gear shifts to game
             controller.apply_inputs(
                 steer_val=data["steer"],
                 throttle_val=data.get("throttle", 0.0),
                 brake_val=data.get("brake", 0.0),
-                horn=data.get("horn", False),
-                ind_left=data.get("ind_left", False),
-                ind_right=data.get("ind_right", False),
+                gear_shift=data.get("gear_shift"),
             )
 
             # Render visual HUD
@@ -156,6 +155,11 @@ def main():
                 tracker.calibrate_center()
             elif key in (ord('r'), ord('R')):
                 tracker.reset_calibration()
+            elif key in (ord('n'), ord('N')):
+                if hasattr(tracker, "current_gear"):
+                    tracker.current_gear = "N"
+                controller.apply_inputs(steer_val=data["steer"], gear_shift="NEUTRAL")
+                print("[Main] Shifted to NEUTRAL [N]")
             elif key in (ord('m'), ord('M')):
                 controller.toggle_mode()
             elif key in (ord('p'), ord('P')):
