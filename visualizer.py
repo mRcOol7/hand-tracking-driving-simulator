@@ -395,8 +395,8 @@ class HUDVisualizer:
             status_text = "STEERING: 1 HAND (RAISE 2 FOR FULL WHEEL)"
             status_color = (0, 200, 255)
         else:
-            status_text = "LOOKING FOR HANDS"
-            status_color = (0, 0, 255)
+            status_text = "LOOKING FOR HANDS (Raise hands to wheel)"
+            status_color = (80, 120, 255)
 
         cv2.putText(frame, f"Status: {status_text}", (28, 138), cv2.FONT_HERSHEY_SIMPLEX, 0.46, status_color, 1, cv2.LINE_AA)
 
