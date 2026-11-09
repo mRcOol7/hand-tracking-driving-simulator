@@ -273,7 +273,28 @@ def build_user_manual():
     p.add_run("Press key [N] on your keyboard to instantly select Neutral transmission.\n")
     p.add_run("•  ")
     p.add_run("Simultaneous Physical Xbox Controller Pass-Through: ").font.bold = True
-    p.add_run("You can plug in your physical Xbox controller at any time! Hand tracking steers the truck (Left Stick X), while your physical controller's analog triggers (RT/LT for Gas/Brake), right thumbstick (in-cab camera look around), and buttons merge simultaneously into ATS without any driver conflicts!")
+    p.add_run("You can plug in your physical Xbox controller at any time! Hand tracking steers the vehicle (Left Stick X), while your physical controller's analog triggers (RT/LT for Gas/Brake), right thumbstick (camera look around), and buttons merge simultaneously into ATS without any driver conflicts!\n")
+    p.add_run("•  ")
+    p.add_run("Eliminating Xbox Device Name Conflicts (DualShock 4 Mode - Key [G]): ").font.bold = True
+    p.add_run("When both a physical Xbox controller and a virtual controller are active, Windows normally names both 'Controller (XBOX 360)'. By default, the software now emulates a Sony DualShock 4 ('Wireless Controller'). This gives the physical controller and virtual hand wheel completely distinct names, so games can bind to both simultaneously without confusion! Press [G] anytime to toggle between DualShock 4 and Xbox 360 mode.")
+
+    # Sports Car / Mustang GT Subsection
+    h2_sub4 = doc.add_heading(level=2)
+    h2_sub4.paragraph_format.space_before = Pt(10)
+    h2_sub4.paragraph_format.space_after = Pt(4)
+    r_sub4 = h2_sub4.add_run("D. Sports Car & Mustang GT High-Speed Racing Mode (Key [V])")
+    r_sub4.font.color.rgb = SLATE
+
+    p_sp = doc.add_paragraph()
+    p_sp.paragraph_format.line_spacing = 1.2
+    p_sp.paragraph_format.space_after = Pt(6)
+    p_sp.add_run("Driving a 500-horsepower Ford Mustang, Ferrari, or supercar in Forza Horizon, Assetto Corsa, or BeamNG requires a dramatically faster steering rack than a heavy commercial semi-truck. Press ").font.color.rgb = TEXT_DARK
+    p_sp.add_run("[V]").font.bold = True
+    p_sp.add_run(" on your keyboard to instantly switch vehicle profiles:\n")
+    p_sp.add_run("1.  TRUCK Profile (ATS / ETS2): ").font.bold = True
+    p_sp.add_run("70.0° maximum angle, 3.5° deadzone, 2.4 S-curve exponent for calm, rock-steady highway cruising.\n")
+    p_sp.add_run("2.  SPORT Profile (Mustang GT / Supercars): ").font.bold = True
+    p_sp.add_run("38.0° fast steering lock, 1.8° tight deadzone, 1.6 S-curve exponent for razor-sharp turn-in, rapid drift counter-steering, and high-speed stability! The on-screen steering wheel automatically morphs into an authentic flat-bottom Mustang GT racing wheel with red centering stripe, speed cutouts, and contoured thumb rests!")
 
     add_image_figure(doc, os.path.join(IMAGES_DIR, "gesture_horn_indicator.jpg"),
                      "Figure 3: Interactive Horn Center Push and Outward Turn Signal Gestures")

@@ -121,6 +121,10 @@ class AdvancedSteeringEngine:
         self.gear_shift_event = None       # "UP", "DOWN", "NEUTRAL"
         self.last_gear_shift_time = 0.0
 
+        # Hand Depth & Y Tracking for Gear Shifting
+        self.prev_r_hand_size = None
+        self.prev_l_hand_y = None
+
         # Vehicle Driving Profile ("truck" or "sport")
         self.active_profile = getattr(config, "ACTIVE_PROFILE", "truck")
 
@@ -264,10 +268,10 @@ class AdvancedSteeringEngine:
                         self.last_gear_shift_time = now
                         print("[GearShift] Gesture detected -> REVERSE (R)")
 
-                if right_hand:
-                    self.prev_r_hand_size = right_hand[2]
-                if left_hand:
-                    self.prev_l_hand_y = left_hand[0][1]
+            if right_hand:
+                self.prev_r_hand_size = right_hand[2]
+            if left_hand:
+                self.prev_l_hand_y = left_hand[0][1]
 
         # 4. Continuous Vector Steering Calculation (Handles Crossing Hands!)
         hands_detected = (1 if left_hand else 0) + (1 if right_hand else 0)
