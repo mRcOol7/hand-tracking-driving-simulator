@@ -199,49 +199,45 @@ class AdvancedSteeringEngine:
             raw_landmarks = results.hand_landmarks
             num_detected = len(results.hand_landmarks)
 
-            # 1. Identify Left and Right hands using anatomical handedness
-            for i, lms in enumerate(results.hand_landmarks):
+            # Extract all detected hand candidates: (pos, lms, hand_size)
+            detected_hands = []
+            for lms in results.hand_landmarks:
                 wrist = lms[0]
                 mcp = lms[9]
                 cx = int(((wrist.x + mcp.x) / 2.0) * w)
                 cy = int(((wrist.y + mcp.y) / 2.0) * h)
-                pos = (cx, cy)
                 hand_size = math.hypot((mcp.x - wrist.x) * w, (mcp.y - wrist.y) * h)
+                detected_hands.append(((cx, cy), lms, hand_size))
 
-                category = "Unknown"
-                if hasattr(results, "handedness") and i < len(results.handedness):
-                    category = results.handedness[i][0].category_name
+            # 1. Robust Hand Assignment (Prevents 180° Inversion & Phantom Steering)
+            if num_detected >= 2:
+                h1, h2 = detected_hands[0], detected_hands[1]
+                p1, p2 = h1[0], h2[0]
 
-                # In horizontally flipped frame (FLIP_CAMERA=True):
-                # "Right" label corresponds to the driver's Right Hand.
-                # "Left" label corresponds to the driver's Left Hand.
-                if category == "Right":
-                    right_hand = (pos, lms, hand_size)
-                elif category == "Left":
-                    left_hand = (pos, lms, hand_size)
-                else:
-                    # Fallback if category ambiguous: assign by horizontal position
-                    if cx > self.hub_center[0]:
-                        right_hand = (pos, lms, hand_size)
+                if self.last_left_pt is None or self.last_right_pt is None:
+                    # Initial hand raise: Hand on left of screen is Left Hand, right is Right Hand
+                    if p1[0] < p2[0]:
+                        left_hand, right_hand = h1, h2
                     else:
-                        left_hand = (pos, lms, hand_size)
-
-            # If both were assigned to the same hand due to detection quirk, separate by X
-            if num_detected >= 2 and (left_hand is None or right_hand is None):
-                p1 = (int((results.hand_landmarks[0][0].x + results.hand_landmarks[0][9].x) / 2.0 * w),
-                      int((results.hand_landmarks[0][0].y + results.hand_landmarks[0][9].y) / 2.0 * h))
-                p2 = (int((results.hand_landmarks[1][0].x + results.hand_landmarks[1][9].x) / 2.0 * w),
-                      int((results.hand_landmarks[1][0].y + results.hand_landmarks[1][9].y) / 2.0 * h))
-                s1 = math.hypot((results.hand_landmarks[0][9].x - results.hand_landmarks[0][0].x) * w,
-                                (results.hand_landmarks[0][9].y - results.hand_landmarks[0][0].y) * h)
-                s2 = math.hypot((results.hand_landmarks[1][9].x - results.hand_landmarks[1][0].x) * w,
-                                (results.hand_landmarks[1][9].y - results.hand_landmarks[1][0].y) * h)
-                if p1[0] < p2[0]:
-                    left_hand = (p1, results.hand_landmarks[0], s1)
-                    right_hand = (p2, results.hand_landmarks[1], s2)
+                        left_hand, right_hand = h2, h1
                 else:
-                    left_hand = (p2, results.hand_landmarks[1], s2)
-                    right_hand = (p1, results.hand_landmarks[0], s1)
+                    # Temporal tracking: match to closest previous hand positions
+                    d_keep = math.hypot(p1[0] - self.last_left_pt[0], p1[1] - self.last_left_pt[1]) + \
+                             math.hypot(p2[0] - self.last_right_pt[0], p2[1] - self.last_right_pt[1])
+                    d_swap = math.hypot(p2[0] - self.last_left_pt[0], p2[1] - self.last_left_pt[1]) + \
+                             math.hypot(p1[0] - self.last_right_pt[0], p1[1] - self.last_right_pt[1])
+                    if d_keep <= d_swap:
+                        left_hand, right_hand = h1, h2
+                    else:
+                        left_hand, right_hand = h2, h1
+
+            elif num_detected == 1:
+                # Single hand detected
+                h1 = detected_hands[0]
+                if h1[0][0] > self.hub_center[0]:
+                    right_hand = h1
+                else:
+                    left_hand = h1
 
             # 2. Gesture Pedals Check (Pinch Gas/Brake)
             if config.ENABLE_GESTURE_PEDALS:
