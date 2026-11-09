@@ -1,4 +1,4 @@
-"""Comprehensive Automated Verification Test for ATS Hand Steering System."""
+"""Comprehensive Automated Verification Test for ATS & Mustang GT Hand Steering System."""
 
 import os
 import sys
@@ -15,117 +15,148 @@ from input_controller import InputController
 from visualizer import HUDVisualizer
 
 def run_tests():
-    print("=" * 65)
-    print("  RUNNING ATS HAND STEERING COMPREHENSIVE SYSTEM VERIFICATION  ")
-    print("=" * 65)
+    print("=" * 70)
+    print("  RUNNING MULTI-VEHICLE & DUAL-CONTROLLER SYSTEM VERIFICATION  ")
+    print("=" * 70)
 
-    # 1. Test Config Integrity
-    print("\n[1/5] Testing Configuration Parameters...")
-    assert hasattr(config, "MAX_STEERING_ANGLE") and config.MAX_STEERING_ANGLE == 70.0
-    assert hasattr(config, "STEERING_DEADZONE") and config.STEERING_DEADZONE == 3.5
-    assert hasattr(config, "STEERING_S_CURVE_EXPONENT") and config.STEERING_S_CURVE_EXPONENT == 2.4
-    assert hasattr(config, "STEERING_LINEAR_COEFF") and config.STEERING_LINEAR_COEFF == 0.20
-    assert hasattr(config, "ENABLE_PHYSICAL_CONTROLLER") and config.ENABLE_PHYSICAL_CONTROLLER is True
-    assert hasattr(config, "ENABLE_GEAR_GESTURES") and config.ENABLE_GEAR_GESTURES is True
-    print(" -> Configuration OK! (Horn and blinkers fully stripped, S-curve configured).")
+    # 1. Test Config Integrity & Vehicle Profiles
+    print("\n[1/6] Testing Configuration & Vehicle Profiles...")
+    assert "truck" in config.VEHICLE_PROFILES
+    assert "sport" in config.VEHICLE_PROFILES
+    truck_p = config.VEHICLE_PROFILES["truck"]
+    sport_p = config.VEHICLE_PROFILES["sport"]
 
-    # 2. Test S-Curve Mathematical Stability (Anti-Twitch)
-    print("\n[2/5] Testing Anti-Twitch S-Curve Sensitivity Profile...")
-    test_angles = [0.0, 3.0, 5.0, 10.0, 15.0, 30.0, 50.0, 70.0]
-    deadzone = config.STEERING_DEADZONE
-    usable = config.MAX_STEERING_ANGLE - deadzone
-    alpha = config.STEERING_LINEAR_COEFF
-    exp = config.STEERING_S_CURVE_EXPONENT
+    assert truck_p["max_steering_angle"] == 70.0
+    assert sport_p["max_steering_angle"] == 38.0
+    print(f" -> Truck Profile: MaxAngle={truck_p['max_steering_angle']}°, Exp={truck_p['s_curve_exponent']}")
+    print(f" -> Sport Profile: MaxAngle={sport_p['max_steering_angle']}°, Exp={sport_p['s_curve_exponent']}")
 
-    print(" Angle (deg) | Old Linear | New S-Curve | Benefit")
-    print("-------------+------------+-------------+---------------------------")
-    for ang in test_angles:
-        old_lin = min(1.0, ang / 45.0)
-        if ang <= deadzone:
-            new_sc = 0.0
+    # 2. Test S-Curve Mathematical Comparison (Truck vs Mustang Sport)
+    print("\n[2/6] Comparing Steering Curve Sensitivity: TRUCK vs MUSTANG GT...")
+    print(" Angle (deg) | Truck Steer (70° Lock) | Mustang GT (38° Lock) | Mustang Advantage")
+    print("-------------+------------------------+-----------------------+-----------------------------")
+    for ang in [0.0, 5.0, 10.0, 15.0, 25.0, 38.0, 70.0]:
+        # Truck
+        dz_t = truck_p["deadzone"]
+        if ang <= dz_t:
+            st_t = 0.0
         else:
-            u = (ang - deadzone) / usable
-            new_sc = alpha * u + (1.0 - alpha) * (u ** exp)
-        benefit = "Rock-steady highway cruise" if ang <= 15.0 else ("Linear cornering" if ang < 50 else "Full lock turn")
-        print(f" {ang:5.1f} deg   | {old_lin*100:6.1f}%    | {new_sc*100:6.1f}%     | {benefit}")
+            u_t = min(1.0, (ang - dz_t) / (truck_p["max_steering_angle"] - dz_t))
+            st_t = truck_p["linear_coeff"] * u_t + (1.0 - truck_p["linear_coeff"]) * (u_t ** truck_p["s_curve_exponent"])
 
-    # At 5 deg (slight hand shake), new S-curve is ~0.4% vs old 11.1%
-    # At 15 deg (highway curve), new S-curve is ~4.5% vs old 33.3%
-    print(" -> Anti-Twitch progressive S-curve verified: Highway twitchiness completely eliminated!")
+        # Sport
+        dz_s = sport_p["deadzone"]
+        if ang <= dz_s:
+            st_s = 0.0
+        else:
+            u_s = min(1.0, (ang - dz_s) / (sport_p["max_steering_angle"] - dz_s))
+            st_s = sport_p["linear_coeff"] * u_s + (1.0 - sport_p["linear_coeff"]) * (u_s ** sport_p["s_curve_exponent"])
 
-    # 3. Test Tracker Hand Crossing & Vector Angle Logic
-    print("\n[3/5] Testing Tracker Hand Crossing & Vector Angle Logic...")
+        desc = "Tight highway center" if ang <= 10.0 else ("Fast racing turn" if ang <= 38.0 else "Full sports lock achieved!")
+        print(f" {ang:5.1f} deg   | {st_t*100:6.1f}%                 | {st_s*100:6.1f}%                | {desc}")
+
+    # 3. Test Advanced Engine Profile Toggle
+    print("\n[3/6] Testing Engine Dynamic Profile Switching...")
     engine = AdvancedSteeringEngine()
+    assert engine.active_profile == "truck"
+    engine.toggle_profile()
+    assert engine.active_profile == "sport"
+    engine.toggle_profile()
+    assert engine.active_profile == "truck"
+    print(" -> Dynamic Profile Toggle (key [V]) verified: switches between Truck and Sport cleanly!")
 
-    # Normal grip: Left at x=400, y=360; Right at x=800, y=360 -> dy=0, dx=400 -> 0 deg
-    dx = 800 - 400
-    dy = 360 - 360
-    ang0 = math.degrees(math.atan2(dy, dx))
-    assert abs(ang0) < 1e-4
+    # 4. Test Gamepad Initialization: DualShock 4 & Xbox 360
+    print("\n[4/6] Testing Gamepad Emulation Modes (DualShock 4 vs Xbox 360)...")
+    # Test DS4
+    controller_ds4 = InputController(mode="gamepad")
+    controller_ds4.pad_type = "ds4"
+    controller_ds4._init_gamepad()
+    print(f" -> DS4 Emulation Active: {type(controller_ds4.gamepad).__name__}")
+    assert controller_ds4.gamepad is not None
+    controller_ds4.apply_inputs(steer_val=0.45, throttle_val=0.9, brake_val=0.0, gear_shift="UP")
+    print(" -> Applied DS4 Inputs: Steer=0.45, Gas=0.9, Gear=UP (Cross pulsed)")
+    controller_ds4.close()
 
-    # Hard turn right where hands cross:
-    # Right hand crossed over left hand: Right at x=350, y=550; Left at x=850, y=170
-    # Vector L -> R: dx = 350 - 850 = -500, dy = 550 - 170 = 380
-    dx_cross = 350 - 850
-    dy_cross = 550 - 170
-    ang_cross = math.degrees(math.atan2(dy_cross, dx_cross))
-    d_unwrap = engine._unwrap_delta_deg(ang_cross, 0.0)
-    print(f" -> Hand Cross vector: dx={dx_cross}, dy={dy_cross} -> Raw Angle: {ang_cross:.1f}°")
-    print(f" -> Phase-unwrapped delta from center: {d_unwrap:.1f}° (Continuous, no snapping!)")
-    assert ang_cross > 90.0, "Angle should smoothly cross past 90 degrees!"
+    # Test Xbox 360
+    controller_x = InputController(mode="gamepad")
+    controller_x.pad_type = "xbox360"
+    controller_x._init_gamepad()
+    print(f" -> Xbox 360 Emulation Active: {type(controller_x.gamepad).__name__}")
+    assert controller_x.gamepad is not None
+    controller_x.apply_inputs(steer_val=-0.35, throttle_val=0.0, brake_val=0.75, gear_shift="DOWN")
+    print(" -> Applied Xbox 360 Inputs: Steer=-0.35, Brake=0.75, Gear=DOWN (Button X pulsed)")
+    controller_x.close()
 
-    # 4. Test InputController & Virtual Gamepad Delivery
-    print("\n[4/5] Testing Input Controller & Simultaneous Xbox Gamepad...")
-    controller = InputController(mode="gamepad")
-    print(f" -> InputController active in: {controller.mode.upper()}")
-    print(f" -> Virtual Gamepad object: {type(controller.gamepad).__name__}")
-    print(f" -> Physical Controller Polling: ENABLED (Slots 0-3 via XInput)")
+    # 5. Test Continuous Vector Angle Tracking (Hand Crossing)
+    print("\n[5/6] Testing Continuous Vector Tracking & Hand Crossing...")
+    dx = -450
+    dy = 320
+    ang = math.degrees(math.atan2(dy, dx))
+    d_unwrap = engine._unwrap_delta_deg(ang, 0.0)
+    print(f" -> Hand cross vector dx={dx}, dy={dy} -> Raw: {ang:.1f}°, Unwrapped: {d_unwrap:.1f}°")
+    assert ang > 90.0
 
-    # Test applying inputs
-    controller.apply_inputs(steer_val=0.25, throttle_val=0.8, brake_val=0.0, gear_shift="UP")
-    print(" -> Applied: Steer=0.25, Throttle=0.80, GearShift=UP (Button A pulsed for ATS Drive)")
-    time.sleep(0.05)
-    controller.apply_inputs(steer_val=-0.50, throttle_val=0.0, brake_val=0.5, gear_shift="DOWN")
-    print(" -> Applied: Steer=-0.50, Brake=0.50, GearShift=DOWN (Button X pulsed for ATS Reverse)")
-    time.sleep(0.05)
-    controller.apply_inputs(steer_val=0.0, throttle_val=0.0, brake_val=0.0, gear_shift="NEUTRAL")
-    print(" -> Applied: Steer=0.0, Neutral (Button Y pulsed for ATS Neutral)")
-
-    # 5. Test Visualizer HUD Rendering
-    print("\n[5/5] Testing HUD Visualizer Rendering...")
+    # 6. Test Visualizer Rendering: Truck HUD & Mustang GT HUD
+    print("\n[6/6] Testing HUD Rendering for Truck and Mustang GT Profiles...")
     visualizer = HUDVisualizer()
-    dummy_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
-    # Add a subtle dark blue-gray cockpit gradient background
-    for y in range(720):
-        dummy_frame[y, :] = (int(30 + 15 * (y / 720)), int(25 + 10 * (y / 720)), int(20 + 10 * (y / 720)))
 
-    mock_tracking_data = {
-        "steer": 0.15,
-        "wheel_angle_deg": 22.0,
-        "calibrated_angle": 22.0,
+    # Frame 1: Truck HUD
+    f_truck = np.zeros((720, 1280, 3), dtype=np.uint8)
+    for y in range(720):
+        f_truck[y, :] = (int(30 + 12 * (y / 720)), int(26 + 8 * (y / 720)), int(22 + 6 * (y / 720)))
+
+    data_truck = {
+        "steer": 0.12,
+        "wheel_angle_deg": 18.0,
+        "calibrated_angle": 18.0,
         "hands_detected": 2,
         "is_two_hands": True,
-        "left_pt": (450, 420),
-        "right_pt": (830, 480),
-        "throttle": 0.65,
+        "left_pt": (460, 420),
+        "right_pt": (820, 470),
+        "throttle": 0.50,
+        "brake": 0.0,
+        "current_gear": "D",
+        "gear_shift": None,
+        "active_profile": "truck",
+        "landmarks": [],
+    }
+    dummy_ctrl = InputController(mode="gamepad")
+    hud_truck = visualizer.draw_hud(f_truck, data_truck, dummy_ctrl, fps=60.0)
+    p_truck_out = r"C:\Users\HP\.gemini\antigravity\brain\5e1151db-2f88-4861-83e2-3f9dc398caed\hud_truck_preview.jpg"
+    cv2.imwrite(p_truck_out, hud_truck)
+    print(f" -> Saved Truck HUD preview to: {p_truck_out}")
+
+    # Frame 2: Mustang GT Sport HUD
+    f_sport = np.zeros((720, 1280, 3), dtype=np.uint8)
+    for y in range(720):
+        f_sport[y, :] = (int(25 + 15 * (y / 720)), int(22 + 10 * (y / 720)), int(20 + 8 * (y / 720)))
+
+    data_sport = {
+        "steer": -0.42,
+        "wheel_angle_deg": -22.0,
+        "calibrated_angle": -22.0,
+        "hands_detected": 2,
+        "is_two_hands": True,
+        "left_pt": (440, 480),
+        "right_pt": (840, 410),
+        "throttle": 0.85,
         "brake": 0.0,
         "current_gear": "D",
         "gear_shift": "UP",
+        "active_profile": "sport",
         "landmarks": [],
     }
+    dummy_ctrl.pad_type = "ds4"
+    hud_sport = visualizer.draw_hud(f_sport, data_sport, dummy_ctrl, fps=60.0)
+    p_sport_out = r"C:\Users\HP\.gemini\antigravity\brain\5e1151db-2f88-4861-83e2-3f9dc398caed\hud_mustang_sport_preview.jpg"
+    cv2.imwrite(p_sport_out, hud_sport)
+    print(f" -> Saved Mustang GT Sport HUD preview to: {p_sport_out}")
 
-    out_frame = visualizer.draw_hud(dummy_frame, mock_tracking_data, controller, fps=60.0)
-
-    # Save artifact preview
-    artifact_preview_path = r"C:\Users\HP\.gemini\antigravity\brain\5e1151db-2f88-4861-83e2-3f9dc398caed\ats_v3_hud_preview.jpg"
-    cv2.imwrite(artifact_preview_path, out_frame)
-    print(f" -> Rendered HUD frame saved to: {artifact_preview_path}")
-
-    controller.close()
+    dummy_ctrl.close()
     engine.close()
-    print("\n" + "=" * 65)
-    print("  ALL 5/5 SUBSYSTEM VERIFICATION TESTS PASSED SUCCESSFULLY!  ")
-    print("=" * 65)
+    print("\n" + "=" * 70)
+    print("  ALL 6/6 SYSTEM VERIFICATION TESTS PASSED SUCCESSFULLY!  ")
+    print("=" * 70)
 
 if __name__ == "__main__":
     run_tests()

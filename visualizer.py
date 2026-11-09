@@ -67,7 +67,8 @@ class HUDVisualizer:
         if config.SHOW_STEERING_WHEEL_HUD:
             center_x = w // 2
             center_y = int(h * 0.70)
-            self._draw_steering_wheel(frame, center_x, center_y, steer, tracking_data.get("calibrated_angle", 0.0))
+            active_profile = tracking_data.get("active_profile", getattr(config, "ACTIVE_PROFILE", "truck"))
+            self._draw_steering_wheel(frame, center_x, center_y, steer, tracking_data.get("calibrated_angle", 0.0), profile=active_profile)
 
         # 4. Draw Linear Gauge at bottom
         self._draw_steering_gauge(frame, w, h, steer)
@@ -87,34 +88,159 @@ class HUDVisualizer:
 
         return frame
 
-    def _draw_steering_wheel(self, frame, cx, cy, steer, angle_deg):
-        """Draw an authentic rotating virtual steering wheel with top red center strip."""
-        radius = config.WHEEL_RADIUS
+    def _rotate_pt(self, x, y, rad, cx, cy):
+        """Rotate local (x, y) around (cx, cy) by angle in radians."""
+        rx = x * math.cos(rad) - y * math.sin(rad)
+        ry = x * math.sin(rad) + y * math.cos(rad)
+        return int(cx + rx), int(cy + ry)
 
-        # Outer rim glow and circle
-        cv2.circle(frame, (cx, cy), radius + 2, (40, 40, 40), 10, cv2.LINE_AA)
-        cv2.circle(frame, (cx, cy), radius, (200, 200, 200), 4, cv2.LINE_AA)
-        cv2.circle(frame, (cx, cy), 28, (60, 60, 60), -1, cv2.LINE_AA)
-        cv2.circle(frame, (cx, cy), 28, (220, 220, 220), 2, cv2.LINE_AA)
+    def _draw_steering_wheel(self, frame, cx, cy, steer, angle_deg, profile="truck"):
+        """Draw realistic steering wheel matching the active vehicle profile."""
+        if profile == "sport":
+            self._draw_sport_wheel(frame, cx, cy, angle_deg)
+        else:
+            self._draw_truck_wheel(frame, cx, cy, angle_deg)
 
-        # Center logo / icon
-        cv2.circle(frame, (cx, cy), 12, (0, 140, 255), -1, cv2.LINE_AA)
+    def _draw_sport_wheel(self, frame, cx, cy, angle_deg, radius=128):
+        """Draw authentic Ford Mustang GT / Supercar flat-bottom racing wheel."""
+        rad = math.radians(angle_deg)
+        rim_thick = 24
+        flat_cutoff_y = int(radius * 0.76)
 
-        # 3 Spokes (left, right, bottom) rotated by angle
-        for base_deg in [0, 180, 90]:
-            rad = math.radians(base_deg + angle_deg)
-            spoke_x = int(cx + (radius - 5) * math.cos(rad))
-            spoke_y = int(cy + (radius - 5) * math.sin(rad))
-            inner_x = int(cx + 28 * math.cos(rad))
-            inner_y = int(cy + 28 * math.sin(rad))
-            cv2.line(frame, (inner_x, inner_y), (spoke_x, spoke_y), (180, 180, 180), 5, cv2.LINE_AA)
+        pts_outer = []
+        pts_inner = []
+        for deg in range(0, 360, 4):
+            d_rad = math.radians(deg)
+            local_x = radius * math.cos(d_rad)
+            local_y = radius * math.sin(d_rad)
+            if local_y > flat_cutoff_y:
+                local_y = flat_cutoff_y
 
-        # Top racing center strip (normally at -90 degrees, i.e. 12 o'clock)
-        top_rad = math.radians(-90 + angle_deg)
-        top_x = int(cx + radius * math.cos(top_rad))
-        top_y = int(cy + radius * math.sin(top_rad))
-        cv2.circle(frame, (top_x, top_y), 8, (0, 0, 255), -1, cv2.LINE_AA)
-        cv2.circle(frame, (top_x, top_y), 8, (255, 255, 255), 1, cv2.LINE_AA)
+            inner_r = radius - rim_thick
+            in_x = inner_r * math.cos(d_rad)
+            in_y = inner_r * math.sin(d_rad)
+            if in_y > flat_cutoff_y - rim_thick:
+                in_y = flat_cutoff_y - rim_thick
+
+            pts_outer.append(self._rotate_pt(local_x, local_y, rad, cx, cy))
+            pts_inner.append(self._rotate_pt(in_x, in_y, rad, cx, cy))
+
+        # Drop shadow
+        pts_shadow = [(p[0] + 2, p[1] + 6) for p in pts_outer]
+        cv2.polylines(frame, [np.array(pts_shadow, np.int32)], True, (12, 12, 12), 10, cv2.LINE_AA)
+
+        # Rim Polygon (Perforated leather dark gray)
+        rim_poly = pts_outer + pts_inner[::-1]
+        cv2.fillPoly(frame, [np.array(rim_poly, np.int32)], (38, 38, 42), cv2.LINE_AA)
+        cv2.polylines(frame, [np.array(pts_outer, np.int32)], True, (65, 65, 70), 2, cv2.LINE_AA)
+        cv2.polylines(frame, [np.array(pts_inner, np.int32)], True, (80, 80, 85), 2, cv2.LINE_AA)
+
+        # Ergonomic 10-and-2 Contoured Thumb Rests
+        for thumb_ang in [-138, -42]:
+            t_rad = math.radians(thumb_ang)
+            tx = (radius - rim_thick // 2) * math.cos(t_rad)
+            ty = (radius - rim_thick // 2) * math.sin(t_rad)
+            pt = self._rotate_pt(tx, ty, rad, cx, cy)
+            cv2.circle(frame, pt, 14, (32, 32, 35), -1, cv2.LINE_AA)
+            cv2.circle(frame, pt, 14, (100, 100, 110), 1, cv2.LINE_AA)
+
+        # Metallic 3-Spoke Assembly with Weight-Reduction Speed Holes
+        hub_r = 38
+        spoke_angles = [180, 0, 90]
+        spoke_w_inner = 24
+        spoke_w_outer = 32
+
+        for sang in spoke_angles:
+            s_rad = math.radians(sang)
+            nx = -math.sin(s_rad)
+            ny = math.cos(s_rad)
+            dx = math.cos(s_rad)
+            dy = math.sin(s_rad)
+
+            r_out = radius - rim_thick
+            if sang == 90:
+                r_out = flat_cutoff_y - rim_thick
+
+            p1 = self._rotate_pt(hub_r * dx + (spoke_w_inner / 2) * nx, hub_r * dy + (spoke_w_inner / 2) * ny, rad, cx, cy)
+            p2 = self._rotate_pt(hub_r * dx - (spoke_w_inner / 2) * nx, hub_r * dy - (spoke_w_inner / 2) * ny, rad, cx, cy)
+            p3 = self._rotate_pt(r_out * dx - (spoke_w_outer / 2) * nx, r_out * dy - (spoke_w_outer / 2) * ny, rad, cx, cy)
+            p4 = self._rotate_pt(r_out * dx + (spoke_w_outer / 2) * nx, r_out * dy + (spoke_w_outer / 2) * ny, rad, cx, cy)
+
+            spoke_poly = np.array([p1, p2, p3, p4], np.int32)
+            cv2.fillPoly(frame, [spoke_poly], (65, 65, 72), cv2.LINE_AA)
+            cv2.polylines(frame, [spoke_poly], True, (160, 160, 175), 2, cv2.LINE_AA)
+
+            mid_r = (hub_r + r_out) / 2.0
+            hole_pt = self._rotate_pt(mid_r * dx, mid_r * dy, rad, cx, cy)
+            cv2.circle(frame, hole_pt, 7, (20, 20, 22), -1, cv2.LINE_AA)
+            cv2.circle(frame, hole_pt, 7, (120, 120, 130), 1, cv2.LINE_AA)
+
+        # Center Hub & Hex Fasteners
+        cv2.circle(frame, (cx, cy), hub_r + 3, (25, 25, 28), -1, cv2.LINE_AA)
+        cv2.circle(frame, (cx, cy), hub_r, (85, 85, 95), 3, cv2.LINE_AA)
+        cv2.circle(frame, (cx, cy), hub_r - 4, (40, 40, 45), -1, cv2.LINE_AA)
+
+        for b_deg in range(0, 360, 60):
+            b_rad = math.radians(b_deg)
+            bx = (hub_r - 9) * math.cos(b_rad)
+            by = (hub_r - 9) * math.sin(b_rad)
+            b_pt = self._rotate_pt(bx, by, rad, cx, cy)
+            cv2.circle(frame, b_pt, 3, (190, 190, 200), -1, cv2.LINE_AA)
+            cv2.circle(frame, b_pt, 1, (40, 40, 40), -1, cv2.LINE_AA)
+
+        # Mustang GT Center Horn Button Emblem
+        emblem_r = 18
+        cv2.circle(frame, (cx, cy), emblem_r, (20, 20, 22), -1, cv2.LINE_AA)
+        cv2.circle(frame, (cx, cy), emblem_r, (0, 180, 255), 2, cv2.LINE_AA)
+        cv2.putText(frame, "GT", (cx - 10, cy + 5), cv2.FONT_HERSHEY_DUPLEX, 0.48, (255, 255, 255), 1, cv2.LINE_AA)
+
+        # Top 12 O'Clock Racing Alignment Stripe (Mustang Race Red + White Pinstripe)
+        for offset_ang, width, color in [(-90, 8, (255, 255, 255)), (-90, 5, (30, 30, 230))]:
+            t_rad = math.radians(offset_ang)
+            p_top_out = self._rotate_pt(radius * math.cos(t_rad), radius * math.sin(t_rad), rad, cx, cy)
+            p_top_in = self._rotate_pt((radius - rim_thick) * math.cos(t_rad), (radius - rim_thick) * math.sin(t_rad), rad, cx, cy)
+            cv2.line(frame, p_top_out, p_top_in, color, width, cv2.LINE_AA)
+
+    def _draw_truck_wheel(self, frame, cx, cy, angle_deg, radius=130):
+        """Draw heavy commercial semi-truck steering wheel (Peterbilt / Kenworth style)."""
+        rad = math.radians(angle_deg)
+        rim_thick = 22
+
+        # Drop shadow
+        cv2.circle(frame, (cx + 2, cy + 6), radius, (15, 15, 18), 12, cv2.LINE_AA)
+
+        # Outer Rim - Deep commercial charcoal / woodgrain
+        cv2.circle(frame, (cx, cy), radius, (50, 45, 40), rim_thick, cv2.LINE_AA)
+        cv2.circle(frame, (cx, cy), radius + rim_thick // 2, (75, 70, 65), 2, cv2.LINE_AA)
+        cv2.circle(frame, (cx, cy), radius - rim_thick // 2, (90, 85, 80), 2, cv2.LINE_AA)
+
+        # 4 Heavy-duty Commercial Spokes (Cruiser layout: 35°, 145°, 215°, 325°)
+        hub_r = 40
+        spoke_angles = [35, 145, 215, 325]
+        for sang in spoke_angles:
+            s_rad = math.radians(sang)
+            dx = math.cos(s_rad)
+            dy = math.sin(s_rad)
+            p_in = self._rotate_pt(hub_r * dx, hub_r * dy, rad, cx, cy)
+            p_out = self._rotate_pt((radius - rim_thick // 2) * dx, (radius - rim_thick // 2) * dy, rad, cx, cy)
+            cv2.line(frame, p_in, p_out, (180, 180, 190), 8, cv2.LINE_AA)
+            cv2.line(frame, p_in, p_out, (230, 230, 240), 3, cv2.LINE_AA)
+
+        # Chrome Center Hub with Commercial Truck Horn Cap
+        cv2.circle(frame, (cx, cy), hub_r, (160, 160, 170), -1, cv2.LINE_AA)
+        cv2.circle(frame, (cx, cy), hub_r, (240, 240, 250), 3, cv2.LINE_AA)
+        cv2.circle(frame, (cx, cy), hub_r - 8, (35, 35, 40), -1, cv2.LINE_AA)
+        cv2.circle(frame, (cx, cy), hub_r - 8, (190, 190, 200), 2, cv2.LINE_AA)
+
+        # ATS Commercial Eagle / Truck Star in center
+        cv2.circle(frame, (cx, cy), 14, (0, 180, 255), -1, cv2.LINE_AA)
+        cv2.circle(frame, (cx, cy), 14, (255, 255, 255), 1, cv2.LINE_AA)
+        cv2.putText(frame, "ATS", (cx - 13, cy + 4), cv2.FONT_HERSHEY_DUPLEX, 0.40, (0, 0, 0), 1, cv2.LINE_AA)
+
+        # 12 o'clock center bead
+        top_pt = self._rotate_pt(0, -radius, rad, cx, cy)
+        cv2.circle(frame, top_pt, 7, (0, 200, 255), -1, cv2.LINE_AA)
+        cv2.circle(frame, top_pt, 7, (255, 255, 255), 1, cv2.LINE_AA)
 
     def _draw_steering_gauge(self, frame, w, h, steer):
         """Draw horizontal bar gauge showing current steer position and deadzone."""
@@ -216,22 +342,33 @@ class HUDVisualizer:
             cv2.putText(frame, "SHIFT -> NEUTRAL [N]", (w // 2 - 130, int(h * 0.40)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 220, 255), 2, cv2.LINE_AA)
 
     def _draw_info_card(self, frame, tracking_data, input_controller, fps):
-        """Draw top-left status card with mode, angle, gear, and physical controller status."""
+        """Draw top-left status card with mode, profile, device type, angle, gear, and physical controller status."""
         overlay = frame.copy()
-        cv2.rectangle(overlay, (15, 15), (340, 235), (20, 20, 20), -1)
+        cv2.rectangle(overlay, (15, 15), (360, 275), (20, 20, 20), -1)
         cv2.addWeighted(overlay, 0.75, frame, 0.25, 0, frame)
-        cv2.rectangle(frame, (15, 15), (340, 235), (80, 80, 80), 1)
+        cv2.rectangle(frame, (15, 15), (360, 275), (80, 80, 80), 1)
 
         # Title
-        cv2.putText(frame, "ATS VIRTUAL STEERING", (28, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 200, 255), 2, cv2.LINE_AA)
+        cv2.putText(frame, "HAND STEERING WHEEL", (28, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 200, 255), 2, cv2.LINE_AA)
 
         # FPS
-        cv2.putText(frame, f"FPS: {fps:.1f}", (255, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (180, 180, 180), 1, cv2.LINE_AA)
+        cv2.putText(frame, f"FPS: {fps:.1f}", (275, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (180, 180, 180), 1, cv2.LINE_AA)
 
-        # Mode
-        mode_text = f"Mode: {input_controller.mode.upper()}"
-        mode_color = (0, 255, 120) if input_controller.mode == "gamepad" else (255, 200, 0)
-        cv2.putText(frame, mode_text, (28, 68), cv2.FONT_HERSHEY_SIMPLEX, 0.52, mode_color, 2, cv2.LINE_AA)
+        # Active Vehicle Profile (Truck vs Mustang Sport)
+        active_prof = tracking_data.get("active_profile", getattr(config, "ACTIVE_PROFILE", "truck"))
+        prof_info = config.VEHICLE_PROFILES.get(active_prof, config.VEHICLE_PROFILES["truck"])
+        prof_color = (0, 255, 120) if active_prof == "sport" else (0, 220, 255)
+        cv2.putText(frame, f"[V] Profile: {prof_info['short_name']}", (28, 66), cv2.FONT_HERSHEY_SIMPLEX, 0.50, prof_color, 2, cv2.LINE_AA)
+
+        # Gamepad Emulation Type (DualShock 4 vs Xbox 360)
+        pad_type = getattr(input_controller, "pad_type", "ds4").upper()
+        if pad_type == "DS4":
+            emu_label = "DS4 (Wireless Controller)"
+            emu_col = (0, 255, 200)
+        else:
+            emu_label = "Xbox 360 Controller"
+            emu_col = (0, 200, 255)
+        cv2.putText(frame, f"[G] Device: {emu_label}", (28, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.46, emu_col, 1, cv2.LINE_AA)
 
         # Physical Xbox Controller merged status
         has_phys = getattr(input_controller, "physical_controller_active", False)
@@ -241,7 +378,7 @@ class HUDVisualizer:
         else:
             phys_text = "Physical Gamepad: Standby"
             phys_color = (130, 130, 130)
-        cv2.putText(frame, phys_text, (28, 92), cv2.FONT_HERSHEY_SIMPLEX, 0.46, phys_color, 1, cv2.LINE_AA)
+        cv2.putText(frame, phys_text, (28, 114), cv2.FONT_HERSHEY_SIMPLEX, 0.46, phys_color, 1, cv2.LINE_AA)
 
         # Status
         if input_controller.is_paused:
@@ -257,27 +394,27 @@ class HUDVisualizer:
             status_text = "LOOKING FOR HANDS"
             status_color = (0, 0, 255)
 
-        cv2.putText(frame, f"Status: {status_text}", (28, 118), cv2.FONT_HERSHEY_SIMPLEX, 0.46, status_color, 1, cv2.LINE_AA)
+        cv2.putText(frame, f"Status: {status_text}", (28, 138), cv2.FONT_HERSHEY_SIMPLEX, 0.46, status_color, 1, cv2.LINE_AA)
 
         # Angle & Steering output
         cal_angle = tracking_data.get("calibrated_angle", 0.0)
         steer = tracking_data.get("steer", 0.0)
-        cv2.putText(frame, f"Angle: {cal_angle:+.1f} deg", (28, 144), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (230, 230, 230), 1, cv2.LINE_AA)
+        cv2.putText(frame, f"Angle: {cal_angle:+.1f} deg", (28, 164), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (230, 230, 230), 1, cv2.LINE_AA)
 
         steer_pct = steer * 100
         direction = "RIGHT" if steer > 0.03 else ("LEFT" if steer < -0.03 else "CENTER")
-        cv2.putText(frame, f"Steer: {steer_pct:+.1f}% ({direction})", (28, 170), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (255, 255, 255), 1, cv2.LINE_AA)
+        cv2.putText(frame, f"Steer: {steer_pct:+.1f}% ({direction})", (28, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (255, 255, 255), 1, cv2.LINE_AA)
 
         # Live Gamepad X-Axis Value
         lx_val = int(steer * 32767)
         x_col = (0, 255, 120) if abs(lx_val) > 1000 else (180, 180, 180)
-        cv2.putText(frame, f"X-Axis: {lx_val:+6d} / 32767", (28, 196), cv2.FONT_HERSHEY_SIMPLEX, 0.52, x_col, 2, cv2.LINE_AA)
+        cv2.putText(frame, f"X-Axis: {lx_val:+6d} / 32767", (28, 216), cv2.FONT_HERSHEY_SIMPLEX, 0.52, x_col, 2, cv2.LINE_AA)
 
         # Current Gear
         gear = tracking_data.get("current_gear", "D")
-        cv2.putText(frame, f"Active Gear: [{gear}]", (28, 222), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (0, 220, 255), 1, cv2.LINE_AA)
+        cv2.putText(frame, f"Active Gear: [{gear}]", (28, 242), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (0, 220, 255), 1, cv2.LINE_AA)
 
     def _draw_hotkeys(self, frame, w, h):
         """Draw bottom hotkey shortcuts bar."""
-        bar_text = "[C] Calibrate Center  |  [N] Neutral  |  [M] Mode  |  [P] Pause  |  [O] Mini PiP  |  [Q] Quit"
-        cv2.putText(frame, bar_text, (w // 2 - 340, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (200, 200, 200), 1, cv2.LINE_AA)
+        bar_text = "[V] Vehicle (Truck/Sport) | [G] Device (DS4/Xbox) | [C] Calibrate | [N] Neutral | [P] Pause | [Q] Quit"
+        cv2.putText(frame, bar_text, (w // 2 - 390, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.46, (200, 200, 200), 1, cv2.LINE_AA)

@@ -121,9 +121,16 @@ class AdvancedSteeringEngine:
         self.gear_shift_event = None       # "UP", "DOWN", "NEUTRAL"
         self.last_gear_shift_time = 0.0
 
-        # Hand Depth Tracking for Gear Shifting
-        self.prev_r_hand_size = None
-        self.prev_l_hand_y = None
+        # Vehicle Driving Profile ("truck" or "sport")
+        self.active_profile = getattr(config, "ACTIVE_PROFILE", "truck")
+
+    def toggle_profile(self):
+        """Toggle between TRUCK (ATS) and SPORT (Mustang GT) profiles."""
+        self.active_profile = "sport" if self.active_profile == "truck" else "truck"
+        prof_info = config.VEHICLE_PROFILES[self.active_profile]
+        print(f"\n[VehicleProfile] Switched to: {prof_info['name']}")
+        print(f" -> Max Angle: {prof_info['max_steering_angle']}° | Deadzone: {prof_info['deadzone']}° | S-Curve Exp: {prof_info['s_curve_exponent']}")
+        return self.active_profile
 
     def calibrate_center(self):
         """Set current wheel angle as dead center (0°)."""
@@ -307,23 +314,25 @@ class AdvancedSteeringEngine:
                 self.wheel_angle_deg = 0.0
             self.prev_vector_angle_deg = None
 
-        # 5. Progressive S-Curve Anti-Twitch Calculation
+        # 5. Progressive S-Curve Anti-Twitch Calculation based on Active Vehicle Profile
+        prof = config.VEHICLE_PROFILES.get(self.active_profile, config.VEHICLE_PROFILES["truck"])
+        prof_max_angle = prof["max_steering_angle"]
+        deadzone = prof["deadzone"]
+        alpha = prof["linear_coeff"]
+        exp = prof["s_curve_exponent"]
+
         effective_angle = self.wheel_angle_deg - self.calibration_offset
         filtered_angle = self.angle_filter.filter(effective_angle, timestamp=now)
 
-        deadzone = config.STEERING_DEADZONE
         if abs(filtered_angle) <= deadzone:
             target_steer = 0.0
         else:
             sign = 1.0 if filtered_angle > 0 else -1.0
-            usable_range = max(1.0, config.MAX_STEERING_ANGLE - deadzone)
+            usable_range = max(1.0, prof_max_angle - deadzone)
             # Normalized input u in [0.0, 1.0]
             u = min(1.0, (abs(filtered_angle) - deadzone) / usable_range)
 
             # Progressive S-Curve Formula:
-            # output = alpha * u + (1 - alpha) * u^exponent
-            alpha = getattr(config, "STEERING_LINEAR_COEFF", 0.20)
-            exp = getattr(config, "STEERING_S_CURVE_EXPONENT", 2.4)
             steer_magnitude = alpha * u + (1.0 - alpha) * (u ** exp)
             target_steer = sign * float(np.clip(steer_magnitude, 0.0, 1.0))
 
@@ -345,6 +354,7 @@ class AdvancedSteeringEngine:
             "brake": float(self.brake),
             "current_gear": self.current_gear,
             "gear_shift": self.gear_shift_event,
+            "active_profile": self.active_profile,
             "landmarks": raw_landmarks,
         }
 

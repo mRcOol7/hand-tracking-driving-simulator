@@ -56,6 +56,7 @@ class InputController:
     def __init__(self, mode=config.DEFAULT_INPUT_MODE):
         self.mode = mode
         self.gamepad = None
+        self.pad_type = getattr(config, "VIRTUAL_GAMEPAD_TYPE", "ds4")
         self.is_paused = False
         self.active_keys = set()
 
@@ -66,6 +67,7 @@ class InputController:
         # Gear Shift Timing
         self.gear_pulse_end_time = 0.0
         self.gear_pulse_button = None
+        self.active_ds4_button = None
 
         if self.mode == "gamepad":
             self._init_gamepad()
@@ -78,13 +80,37 @@ class InputController:
             self.mode = "keyboard"
             return
 
+        # Clean up existing instance if any
+        if self.gamepad is not None:
+            try:
+                del self.gamepad
+                self.gamepad = None
+            except Exception:
+                pass
+
         try:
-            self.gamepad = vg.VX360Gamepad()
-            print("[InputController] Virtual Xbox 360 Controller connected successfully!")
+            if self.pad_type == "ds4":
+                self.gamepad = vg.VDS4Gamepad()
+                print("[InputController] Virtual Sony DualShock 4 ('Wireless Controller') connected successfully!")
+                print("[InputController] -> Ideal for physical Xbox controller: zero device name collision!")
+            else:
+                self.gamepad = vg.VX360Gamepad()
+                print("[InputController] Virtual Xbox 360 Controller connected successfully!")
         except Exception as e:
-            print(f"[InputController] Failed to initialize virtual gamepad: {e}")
+            print(f"[InputController] Failed to initialize virtual gamepad ({self.pad_type}): {e}")
             print("[InputController] Falling back to KEYBOARD mode.")
             self.mode = "keyboard"
+
+    def toggle_gamepad_type(self):
+        """Toggle between DualShock 4 (Wireless Controller) and Xbox 360 controller."""
+        if not VGAMEPAD_AVAILABLE:
+            return self.pad_type
+
+        self.reset_all()
+        self.pad_type = "xbox360" if self.pad_type == "ds4" else "ds4"
+        self._init_gamepad()
+        print(f"[InputController] Switched Virtual Gamepad Type to: {self.pad_type.upper()}")
+        return self.pad_type
 
     def toggle_mode(self):
         """Toggle between Gamepad and Keyboard modes."""
@@ -165,7 +191,7 @@ class InputController:
                 if phys_lt > 0.05:
                     final_brake = max(final_brake, phys_lt)
 
-                # Pass through physical right thumbstick (Look Around in ATS)
+                # Pass through physical right thumbstick (Look Around in ATS/racing)
                 rx = phys_gp.sThumbRX
                 ry = phys_gp.sThumbRY
 
@@ -182,28 +208,49 @@ class InputController:
 
             # 4. Right Stick Pass-Through
             if phys_gp:
-                self.gamepad.right_joystick(x_value=rx, y_value=ry)
+                if self.pad_type == "ds4":
+                    self.gamepad.right_joystick_float(x_value_float=float(rx) / 32767.0, y_value_float=float(ry) / 32767.0)
+                else:
+                    self.gamepad.right_joystick(x_value=rx, y_value=ry)
 
-            # 5. Gear Shifting Pulse (Button A for Drive, Button X for Reverse, Button Y for Neutral)
-            if gear_shift == "UP":
-                # Shift to Drive (D) -> Pulse Button A
-                self.gear_pulse_button = vg.XUSB_BUTTON.XUSB_GAMEPAD_A
-                self.gear_pulse_end_time = now + 0.18
-            elif gear_shift == "DOWN":
-                # Shift to Reverse (R) -> Pulse Button X
-                self.gear_pulse_button = vg.XUSB_BUTTON.XUSB_GAMEPAD_X
-                self.gear_pulse_end_time = now + 0.18
-            elif gear_shift == "NEUTRAL":
-                # Shift to Neutral (N) -> Pulse Button Y
-                self.gear_pulse_button = vg.XUSB_BUTTON.XUSB_GAMEPAD_Y
-                self.gear_pulse_end_time = now + 0.18
+            # 5. Gear Shifting Pulse
+            if self.pad_type == "ds4":
+                # Release previous button if pulse expired
+                if self.active_ds4_button and now >= self.gear_pulse_end_time:
+                    try:
+                        self.gamepad.release_button(button=self.active_ds4_button)
+                    except Exception:
+                        pass
+                    self.active_ds4_button = None
 
-            # Combine active gear pulse button with physical buttons
-            if now < self.gear_pulse_end_time and self.gear_pulse_button:
-                final_buttons |= self.gear_pulse_button
+                if gear_shift == "UP":
+                    self.active_ds4_button = vg.DS4_BUTTONS.DS4_BUTTON_CROSS  # Cross = Drive
+                    self.gamepad.press_button(button=self.active_ds4_button)
+                    self.gear_pulse_end_time = now + 0.18
+                elif gear_shift == "DOWN":
+                    self.active_ds4_button = vg.DS4_BUTTONS.DS4_BUTTON_SQUARE  # Square = Reverse
+                    self.gamepad.press_button(button=self.active_ds4_button)
+                    self.gear_pulse_end_time = now + 0.18
+                elif gear_shift == "NEUTRAL":
+                    self.active_ds4_button = vg.DS4_BUTTONS.DS4_BUTTON_TRIANGLE  # Triangle = Neutral
+                    self.gamepad.press_button(button=self.active_ds4_button)
+                    self.gear_pulse_end_time = now + 0.18
 
-            # Apply buttons to virtual report
-            self.gamepad.report.wButtons = final_buttons
+            else:  # xbox360
+                if gear_shift == "UP":
+                    self.gear_pulse_button = vg.XUSB_BUTTON.XUSB_GAMEPAD_A
+                    self.gear_pulse_end_time = now + 0.18
+                elif gear_shift == "DOWN":
+                    self.gear_pulse_button = vg.XUSB_BUTTON.XUSB_GAMEPAD_X
+                    self.gear_pulse_end_time = now + 0.18
+                elif gear_shift == "NEUTRAL":
+                    self.gear_pulse_button = vg.XUSB_BUTTON.XUSB_GAMEPAD_Y
+                    self.gear_pulse_end_time = now + 0.18
+
+                if now < self.gear_pulse_end_time and self.gear_pulse_button:
+                    final_buttons |= self.gear_pulse_button
+
+                self.gamepad.report.wButtons = final_buttons
 
             # 6. Flush state report to Windows driver
             self.gamepad.update()

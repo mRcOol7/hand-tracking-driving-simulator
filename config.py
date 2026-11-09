@@ -17,24 +17,62 @@ MAX_NUM_HANDS = 2
 #              and Progressive S-Curve Anti-Twitch Highway Stability.
 ENGINE_MODE = "advanced"
 
+# Input Modes
+DEFAULT_INPUT_MODE = "gamepad"     # "gamepad" (via vgamepad) or "keyboard"
+
+# Virtual Gamepad Emulation Type:
+# "ds4"     : Emulates Sony DualShock 4 ("Wireless Controller" in Windows joy.cpl & games).
+#             *** RECOMMENDED when using alongside a physical Xbox Controller ***
+#             Because Windows names the physical controller "Controller (XBOX 360)" and
+#             the hand steering "Wireless Controller", they have COMPLETELY DISTINCT NAMES!
+#             Games like ATS, Forza, Assetto Corsa will never confuse them!
+# "xbox360" : Emulates Microsoft Xbox 360 ("Controller (XBOX 360 For Windows)").
+VIRTUAL_GAMEPAD_TYPE = "ds4"
+
+# Vehicle Driving Dynamics Profiles:
+# "truck" : American Truck Simulator / Euro Truck Simulator 2 (Heavy Hauler)
+#           70.0° angle, 3.5° deadzone, 2.4 S-curve exponent, rock-steady highway cruising.
+# "sport" : Fast sports cars (Ford Mustang GT, Ferrari, Supercars, Forza, Assetto Corsa)
+#           38.0° fast 14:1 steering rack, 1.8° tight deadzone, 1.6 S-curve exponent for crisp turn-in & drift.
+# Switchable instantly on the fly anytime by pressing key [V]!
+ACTIVE_PROFILE = "truck"
+
+VEHICLE_PROFILES = {
+    "truck": {
+        "name": "TRUCK (Heavy Hauler - ATS / ETS2)",
+        "short_name": "TRUCK",
+        "max_steering_angle": 70.0,
+        "deadzone": 3.5,
+        "s_curve_exponent": 2.4,
+        "linear_coeff": 0.20,
+        "wheel_type": "truck",
+        "wheel_radius": 130,
+    },
+    "sport": {
+        "name": "SPORT (Mustang GT / Fast Supercars)",
+        "short_name": "SPORT (MUSTANG)",
+        "max_steering_angle": 38.0,
+        "deadzone": 1.8,
+        "s_curve_exponent": 1.6,
+        "linear_coeff": 0.40,
+        "wheel_type": "sport_mustang",
+        "wheel_radius": 128,
+    }
+}
+
 # Progressive Steering Response Curve (Anti-Twitch Formula: alpha*u + (1-alpha)*u^exponent)
-# Near center (0-15°): Ultra-forgiving, calm, rock-steady lane keeping on highways.
-# At full tilt (60-70°): Smoothly ramps up to 100% full lock for sharp city turns & parking.
-MAX_STEERING_ANGLE = 70.0          # Degrees of hand tilt for 100% steering lock
-STEERING_DEADZONE = 3.5            # Degrees near center treated as perfectly straight (0.0)
-STEERING_S_CURVE_EXPONENT = 2.4    # Exponent for non-linear curve (higher = calmer center)
-STEERING_LINEAR_COEFF = 0.20       # Linear blend component for natural progressive response
+MAX_STEERING_ANGLE = VEHICLE_PROFILES["truck"]["max_steering_angle"]
+STEERING_DEADZONE = VEHICLE_PROFILES["truck"]["deadzone"]
+STEERING_S_CURVE_EXPONENT = VEHICLE_PROFILES["truck"]["s_curve_exponent"]
+STEERING_LINEAR_COEFF = VEHICLE_PROFILES["truck"]["linear_coeff"]
 SMOOTHING_FACTOR = 0.25            # Smoothing factor (One Euro filter frequency tuning)
 AUTO_CENTER_RATE = 0.15            # Caster self-centering speed when hands release wheel
-
-# Input Modes
-DEFAULT_INPUT_MODE = "gamepad"     # "gamepad" (Xbox 360 controller via vgamepad) or "keyboard"
 
 # Physical Xbox Controller Simultaneous Support (Pass-Through)
 # When a physical Xbox 360 / One controller is connected:
 # Hand Tracking controls Steering (Left Stick X), while the physical controller's
 # Triggers (RT/LT for Gas/Brake), Buttons (A/X/Y for Gears), and Right Stick (Look Around)
-# pass straight through into ATS!
+# pass straight through into games!
 ENABLE_PHYSICAL_CONTROLLER = True
 
 # Gear Shifting Settings (Drive / Neutral / Reverse)

@@ -92,12 +92,14 @@ def main():
 
     print("\n[Controls & Driving Guide]")
     print("  Hold both hands up like gripping a steering wheel.")
-    print("  Tilt hands left / right   -> Smooth authentic truck steering (Progressive S-Curve)")
+    print("  Tilt hands left / right   -> Smooth authentic steering (Progressive S-Curve)")
     print("  Cross hands completely    -> Continuous multi-turn angle without reversing")
     print("  Single-hand fallback      -> Steers smoothly when shifting or resting one hand")
     print("  Push Right Hand forward   -> Gear Shift to DRIVE [D]")
     print("  Pull Left Hand downward   -> Gear Shift to REVERSE [R]")
     print("  Physical Xbox Controller  -> Connect physical gamepad anytime! Triggers/buttons merge seamlessly")
+    print("  [V] : Toggle Vehicle Profile (TRUCK <-> SPORT MUSTANG GT)")
+    print("  [G] : Toggle Gamepad Device (DualShock 4 'Wireless' <-> Xbox 360)")
     print("  [N] : Shift to NEUTRAL [N]")
     print("  [O] : Toggle Always-On-Top Mini PiP (floats over ATS on a single screen!)")
     print("  [C] : Calibrate Center (sets current hand pose to 0°)")
@@ -160,6 +162,12 @@ def main():
                     tracker.current_gear = "N"
                 controller.apply_inputs(steer_val=data["steer"], gear_shift="NEUTRAL")
                 print("[Main] Shifted to NEUTRAL [N]")
+            elif key in (ord('v'), ord('V')):
+                if hasattr(tracker, "toggle_profile"):
+                    tracker.toggle_profile()
+            elif key in (ord('g'), ord('G')):
+                if hasattr(controller, "toggle_gamepad_type"):
+                    controller.toggle_gamepad_type()
             elif key in (ord('m'), ord('M')):
                 controller.toggle_mode()
             elif key in (ord('p'), ord('P')):
