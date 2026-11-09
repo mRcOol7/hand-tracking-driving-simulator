@@ -14,3 +14,4 @@ if exist "%~dp0python\python.exe" (
 
 echo.
 pause
+
