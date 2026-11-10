@@ -79,7 +79,10 @@ Press **`[V]`** anytime while driving to switch between heavy hauling and high-s
      - `Wireless Controller` (Hand Steering Wheel)
    - Assign **Steering Axis** $\rightarrow$ `Wireless Controller Left Stick X`.
    - Assign **Throttle / Brake / Buttons** $\rightarrow$ `Controller (XBOX 360) RT / LT / Buttons`.
-4. Our software also supports **Unified Pass-Through**: Even in single-controller games (like Forza Horizon), physical RT/LT triggers and right thumbsticks merge directly into the virtual controller!
+4. **Unified Pass-Through**: Even in single-controller games (like Forza Horizon), physical RT/LT triggers and right thumbsticks merge directly into the virtual controller!
+5. **No Physical Controller? Test Dual Support Virtually!**:
+   - In `run.bat`, press **`[T]`** to activate the **Simulated Physical Xbox Controller** in real-time.
+   - Or double-click **`test_dual_controller.bat`** to run a comprehensive 5-phase automated test verifying simultaneous hand steering and Xbox trigger/button inputs.
 
 ---
 
@@ -120,7 +123,13 @@ Double-click:
 play_demo.bat
 ```
 
-### 3. One-Time Gamepad Driver Setup (If Needed)
+### 3. Test Dual Controller Support (Simulated Hardware)
+Double-click:
+```bash
+test_dual_controller.bat
+```
+
+### 4. One-Time Gamepad Driver Setup (If Needed)
 If games do not detect the virtual controller on first launch, right-click and Run as Administrator:
 ```bash
 install_gamepad_driver.bat
@@ -130,6 +139,7 @@ install_gamepad_driver.bat
 
 ## ⌨️ In-App Hotkeys
 
+- **`[T]`**: Toggle Simulated Physical Xbox Controller (test dual-input without physical hardware).
 - **`[V]`**: Toggle Vehicle Profile (**`TRUCK (ATS)`** $\leftrightarrow$ **`SPORT (MUSTANG GT)`**).
 - **`[G]`**: Toggle Virtual Gamepad Device (**`DualShock 4`** $\leftrightarrow$ **`Xbox 360`**).
 - **`[C]`**: Calibrate wheel center (sets current hand position to $0.0^\circ$).

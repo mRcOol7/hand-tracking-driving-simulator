@@ -428,6 +428,9 @@ def build_user_manual():
         ("Shift to DRIVE (D)", "Push right hand forward toward screen", "Xbox Button A / Shift Up", "Green [D] indicator & HUD banner"),
         ("Shift to REVERSE (R)", "Pull left hand downward", "Xbox Button X / Shift Down", "Red [R] indicator & HUD banner"),
         ("Shift to NEUTRAL (N)", "Press keyboard key [N]", "Xbox Button Y / Neutral", "Yellow [N] indicator"),
+        ("Test Xbox Simulator", "Press keyboard key [T]", "Simulated Hardware", "Toggles simulated Xbox RT/LT triggers live"),
+        ("Vehicle Profile Toggle", "Press keyboard key [V]", "Physics & HUD switch", "Switches TRUCK (70°) <-> SPORT MUSTANG GT (38°)"),
+        ("Gamepad Emulation Toggle", "Press keyboard key [G]", "Device Type switch", "Switches DualShock 4 <-> Xbox 360"),
         ("Physical Xbox Gamepad", "Plug in Xbox 360 / One controller anytime", "Simultaneous Pass-Through", "Physical RT/LT/Right-Stick pass seamlessly"),
         ("Mini PiP Overlay", "Press keyboard key [O]", "Window Toggle", "Shrinks / Expands Always-on-Top HUD"),
         ("Calibrate Wheel Center", "Press keyboard key [C]", "Calibrate Center", "Re-centers zero angle to current hand pose"),
@@ -474,7 +477,10 @@ def build_user_manual():
          "2. In config.py: Open 'config.py' with Notepad and change STEERING_SENSITIVITY = 1.0 (higher = faster, lower = slower)."),
          
         ("Q: How do I switch camera if I have multiple webcams?",
-         "A: Open 'config.py' in Notepad and set CAMERA_INDEX = 1 (or 2). If using an IP Webcam stream, paste your phone's URL into PHONE_STREAM_URL = 'http://192.168.1.XX:8080/video'.")
+         "A: Open 'config.py' in Notepad and set CAMERA_INDEX = 1 (or 2). If using an IP Webcam stream, paste your phone's URL into PHONE_STREAM_URL = 'http://192.168.1.XX:8080/video'."),
+         
+        ("Q: Can I use my physical Xbox controller together with hand steering?",
+         "A: Yes! The system features automatic dual controller merging. Your physical Xbox controller RT/LT triggers, thumbsticks, and buttons pass through directly while your hands control the steering wheel. You can also test this without hardware by pressing [T] or running 'test_dual_controller.bat'.")
     ]
 
     for q, a in faqs:
