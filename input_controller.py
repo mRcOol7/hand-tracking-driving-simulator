@@ -5,7 +5,7 @@ Stripped of horn and indicators; focused 100% on smooth Steering, Pedals, and Ge
 
 import time
 import ctypes
-from ctypes import Structure, c_ushort, c_byte, c_short, byref
+from ctypes import Structure, c_ushort, c_ubyte, c_short, byref
 import config
 
 # Try to import vgamepad (Virtual Xbox 360)
@@ -25,12 +25,12 @@ except ImportError:
     pydirectinput = None
     PYDIRECTINPUT_AVAILABLE = False
 
-# XInput Structure for Physical Xbox Controller Pass-Through
+# XInput Structure for Physical Xbox Controller Pass-Through (Windows Xinput.h)
 class XINPUT_GAMEPAD(Structure):
     _fields_ = [
         ('wButtons', c_ushort),
-        ('bLeftTrigger', c_byte),
-        ('bRightTrigger', c_byte),
+        ('bLeftTrigger', c_ubyte),
+        ('bRightTrigger', c_ubyte),
         ('sThumbLX', c_short),
         ('sThumbLY', c_short),
         ('sThumbRX', c_short),
