@@ -2,6 +2,7 @@
 
 import sys
 import time
+import math
 import cv2
 import config
 from advanced_tracker import AdvancedSteeringEngine
@@ -237,6 +238,11 @@ def main():
         print("\n[Main] Interrupted by user.")
     finally:
         print("[Main] Cleaning up resources...")
+        if simulated_xbox is not None:
+            try:
+                del simulated_xbox
+            except Exception:
+                pass
         controller.close()
         tracker.close()
         cap.release()
