@@ -420,5 +420,5 @@ class HUDVisualizer:
 
     def _draw_hotkeys(self, frame, w, h):
         """Draw bottom hotkey shortcuts bar."""
-        bar_text = "[V] Vehicle (Truck/Sport) | [G] Device (DS4/Xbox) | [C] Calibrate | [N] Neutral | [P] Pause | [Q] Quit"
-        cv2.putText(frame, bar_text, (w // 2 - 390, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.46, (200, 200, 200), 1, cv2.LINE_AA)
+        bar_text = "[T] Test Xbox Sim | [V] Profile | [G] Gamepad | [C] Center | [N] Neutral | [O] PiP | [Q] Quit"
+        cv2.putText(frame, bar_text, (w // 2 - 410, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.44, (200, 200, 200), 1, cv2.LINE_AA)

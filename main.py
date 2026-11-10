@@ -95,6 +95,11 @@ def main():
 
     is_mini_overlay = False
 
+    # Optional Virtual Xbox Controller Simulator for testing without physical hardware
+    simulated_xbox = None
+    sim_xbox_active = False
+    sim_cycle_t = 0.0
+
     print("\n[Controls & Driving Guide]")
     print("  Hold both hands up like gripping a steering wheel.")
     print("  Tilt hands left / right   -> Smooth authentic steering (Progressive S-Curve)")
@@ -103,6 +108,7 @@ def main():
     print("  Push Right Hand forward   -> Gear Shift to DRIVE [D]")
     print("  Pull Left Hand downward   -> Gear Shift to REVERSE [R]")
     print("  Physical Xbox Controller  -> Connect physical gamepad anytime! Triggers/buttons merge seamlessly")
+    print("  [T] : Toggle Simulated Physical Xbox Controller (Test dual support without hardware!)")
     print("  [V] : Toggle Vehicle Profile (TRUCK <-> SPORT MUSTANG GT)")
     print("  [G] : Toggle Gamepad Device (DualShock 4 'Wireless' <-> Xbox 360)")
     print("  [N] : Shift to NEUTRAL [N]")
@@ -136,6 +142,17 @@ def main():
             if config.FLIP_CAMERA:
                 frame = cv2.flip(frame, 1)
 
+            # Update Simulated Physical Xbox Controller if active
+            if sim_xbox_active and simulated_xbox is not None:
+                sim_cycle_t += dt
+                # Generate a realistic driving pedal pattern (gentle gas curve 30% -> 80%, occasional brake)
+                wave = math.sin(sim_cycle_t * 1.5)
+                sim_rt = max(0.0, float(0.55 + 0.35 * wave)) if wave > -0.5 else 0.0
+                sim_lt = max(0.0, float(0.70 * (-wave - 0.5))) if wave <= -0.5 else 0.0
+                simulated_xbox.right_trigger_float(sim_rt)
+                simulated_xbox.left_trigger_float(sim_lt)
+                simulated_xbox.update()
+
             # Process hand tracking & angle calculation
             data = tracker.process_frame(frame)
 
@@ -158,6 +175,27 @@ def main():
             if key in (ord('q'), ord('Q'), 27):  # 'q' or ESC
                 print("[Main] Exiting application...")
                 break
+            elif key in (ord('t'), ord('T')):
+                if not sim_xbox_active:
+                    try:
+                        import vgamepad as vg
+                        simulated_xbox = vg.VX360Gamepad()
+                        sim_xbox_active = True
+                        sim_cycle_t = 0.0
+                        print("\n[Main] >>> SIMULATED PHYSICAL XBOX CONTROLLER ACTIVATED! <<<")
+                        print("  Simulating friend's physical Xbox controller via Windows XInput.")
+                        print("  Steer with your hands while watching the Xbox RT/LT pedals merge in real-time!\n")
+                    except Exception as err:
+                        print(f"[Main] Failed to create simulated Xbox gamepad: {err}")
+                else:
+                    if simulated_xbox is not None:
+                        try:
+                            del simulated_xbox
+                        except Exception:
+                            pass
+                        simulated_xbox = None
+                    sim_xbox_active = False
+                    print("\n[Main] >>> SIMULATED PHYSICAL XBOX CONTROLLER DEACTIVATED <<<")
             elif key in (ord('c'), ord('C')):
                 tracker.calibrate_center()
             elif key in (ord('r'), ord('R')):
@@ -177,7 +215,7 @@ def main():
                 controller.toggle_mode()
             elif key in (ord('p'), ord('P')):
                 controller.toggle_pause()
-            elif key in (ord('o'), ord('O'), ord('t'), ord('T')):
+            elif key in (ord('o'), ord('O')):
                 is_mini_overlay = not is_mini_overlay
                 if is_mini_overlay:
                     cv2.resizeWindow(window_name, 360, 220)
